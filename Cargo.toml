@@ -6,5 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-pcap = { version = "0.10"}
-
+pcap = "0.10.1"
+pnet = "0.31.0"
+pnet_datalink = "0.31.0"
