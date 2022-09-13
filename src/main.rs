@@ -9,8 +9,10 @@
 /// This example shows a basic packet logger using libpnet
 extern crate pnet;
 
+use std::collections::HashMap;
+use std::fmt::{Display, Formatter};
 use pnet_datalink::{self as datalink, NetworkInterface};
-use pnet::packet::arp::{Arp, ArpPacket};
+use pnet::packet::arp::{ArpPacket};
 use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
 use pnet::packet::icmp::{echo_reply, echo_request, IcmpPacket, IcmpTypes};
 use pnet::packet::icmpv6::Icmpv6Packet;
@@ -24,21 +26,29 @@ use pnet::util::MacAddr;
 use pnet_datalink::Channel::Ethernet as Ethernet;
 
 //use std::env;
-//use std::io::{self, Write};
-use std::net::IpAddr;
-use crate::EtherTypes::Arp;
+use std::io::{self, Write};
+use std::net::{IpAddr, Ipv4Addr};
+use std::time::{Duration, SystemTime};
 //use std::process;
 
-fn handle_udp_packet(source: IpAddr, destination: IpAddr, packet: &[u8]) {
+fn handle_udp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_packet_info: &mut PacketInfo) {
     let udp = UdpPacket::new(packet);
+
+    let prt_srg = udp.get_source();
+    let prt_dest = udp.get_destination();
+
+    PacketInfo::set_porta_sorgente(new_packet_info,prt_srg);
+    PacketInfo::set_porta_destinazione(new_packet_info, prt_dest);
+    PacketInfo::set_protocol(new_packet_info,Protocol::Udp);
+
 
     if let Some(udp) = udp {
         println!(
             "UDP Packet: {}:{} > {}:{}; length: {}",
             source,
-            udp.get_source(),
+            prt_srg,
             destination,
-            udp.get_destination(),
+            prt_dest,
             udp.get_length()
         );
     } else {
@@ -46,8 +56,10 @@ fn handle_udp_packet(source: IpAddr, destination: IpAddr, packet: &[u8]) {
     }
 }
 
-fn handle_icmp_packet(source: IpAddr, destination: IpAddr, packet: &[u8]) {
+fn handle_icmp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_packet_info: &mut PacketInfo) {
     let icmp_packet = IcmpPacket::new(packet);
+    PacketInfo::set_protocol(new_packet_info,Protocol::IcmpV4);
+
     if let Some(icmp_packet) = icmp_packet {
         match icmp_packet.get_icmp_type() {
             IcmpTypes::EchoReply => {
@@ -82,8 +94,9 @@ fn handle_icmp_packet(source: IpAddr, destination: IpAddr, packet: &[u8]) {
     }
 }
 
-fn handle_icmpv6_packet(source: IpAddr, destination: IpAddr, packet: &[u8]) {
+fn handle_icmpv6_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_packet_info: &mut PacketInfo) {
     let icmpv6_packet = Icmpv6Packet::new(packet);
+    PacketInfo::set_protocol(new_packet_info,Protocol::IcmpV6);
     if let Some(icmpv6_packet) = icmpv6_packet {
         println!(
             "ICMPv6 packet {} -> {} (type={:?})",
@@ -96,15 +109,24 @@ fn handle_icmpv6_packet(source: IpAddr, destination: IpAddr, packet: &[u8]) {
     }
 }
 
-fn handle_tcp_packet(source: IpAddr, destination: IpAddr, packet: &[u8]) {
+fn handle_tcp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_packet_info: &mut PacketInfo) {
     let tcp = TcpPacket::new(packet);
+
+    let prt_srg = tcp.get_source();
+    let prt_dest = tcp.get_destination();
+
+    PacketInfo::set_porta_sorgente(new_packet_info,prt_srg);
+    PacketInfo::set_porta_destinazione(new_packet_info, prt_dest);
+    PacketInfo::set_protocol(new_packet_info,Protocol::Tcp);
+
+
     if let Some(tcp) = tcp {
         println!(
             "TCP Packet: {}:{} > {}:{}; length: {}",
             source,
-            tcp.get_source(),
+            prt_srg,
             destination,
-            tcp.get_destination(),
+            prt_dest,
             packet.len()
         );
     } else {
@@ -117,19 +139,20 @@ fn handle_transport_protocol(
     destination: IpAddr,
     protocol: IpNextHeaderProtocol,
     packet: &[u8],
+    new_packet_info: &mut PacketInfo
 ) {
     match protocol {
         IpNextHeaderProtocols::Udp => {
-            handle_udp_packet(source, destination, packet)
+            handle_udp_packet(source, destination, packet, new_packet_info)
         }
         IpNextHeaderProtocols::Tcp => {
-            handle_tcp_packet( source, destination, packet)
+            handle_tcp_packet( source, destination, packet, new_packet_info)
         }
         IpNextHeaderProtocols::Icmp => {
-            handle_icmp_packet(source, destination, packet)
+            handle_icmp_packet(source, destination, packet, new_packet_info)
         }
         IpNextHeaderProtocols::Icmpv6 => {
-            handle_icmpv6_packet(source, destination, packet)
+            handle_icmpv6_packet(source, destination, packet, new_packet_info)
         }
         _ => println!(
             "Unknown {} packet: {} > {}; protocol: {:?} length: {}",
@@ -145,36 +168,49 @@ fn handle_transport_protocol(
     }
 }
 
-fn handle_ipv4_packet(ethernet: &EthernetPacket) {
+fn handle_ipv4_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInfo) {
     let header = Ipv4Packet::new(ethernet.payload());
+    let ip_sorg = IpAddr::V4(header.get_source());
+    let ip_dest = IpAddr::V4(header.get_destination());
+    PacketInfo::set_ip_sorgente(new_packet_info, ip_sorg);
+    PacketInfo::set_ip_destinazione(new_packet_info, ip_dest);
     if let Some(header) = header {
         handle_transport_protocol(
-            IpAddr::V4(header.get_source()),
-            IpAddr::V4(header.get_destination()),
+            ip_sorg,
+            ip_dest,
             header.get_next_level_protocol(),
             header.payload(),
+            new_packet_info
         );
     } else {
         println!("Malformed IPv4 Packet");
     }
 }
 
-fn handle_ipv6_packet(ethernet: &EthernetPacket) {
+fn handle_ipv6_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInfo) {
     let header = Ipv6Packet::new(ethernet.payload());
+    let ip_sorg = IpAddr::V6(header.get_source());
+    let ip_dest = IpAddr::V6(header.get_destination());
+    PacketInfo::set_ip_sorgente(new_packet_info, ip_sorg);
+    PacketInfo::set_ip_destinazione(new_packet_info, ip_dest);
     if let Some(header) = header {
         handle_transport_protocol(
-            IpAddr::V6(header.get_source()),
-            IpAddr::V6(header.get_destination()),
+            ip_sorg,
+            ip_dest,
             header.get_next_header(),
             header.payload(),
+            new_packet_info
         );
     } else {
         println!("Malformed IPv6 Packet");
     }
 }
 
-fn handle_arp_packet(ethernet: &EthernetPacket) {
+fn handle_arp_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInfo) {
     let header = ArpPacket::new(ethernet.payload());
+
+    //TODO: DA GESTIRE
+
     if let Some(header) = header {
         println!(
             "ARP packet: {}({}) > {}({}); operation: {:?}",
@@ -189,11 +225,13 @@ fn handle_arp_packet(ethernet: &EthernetPacket) {
     }
 }
 
-fn handle_ethernet_frame(ethernet: &EthernetPacket) {
+fn handle_ethernet_frame(ethernet: &EthernetPacket, new_packet_info: &mut PacketInfo) {
+    PacketInfo::set_dim(new_packet_info, ethernet.packet().len);
+    new_packet_info.dim = ethernet.packet().len();
     match ethernet.get_ethertype() {
-        EtherTypes::Ipv4 => handle_ipv4_packet( ethernet),
-        EtherTypes::Ipv6 => handle_ipv6_packet(ethernet),
-        EtherTypes::Arp => handle_arp_packet(ethernet),
+        EtherTypes::Ipv4 => handle_ipv4_packet(ethernet, new_packet_info),
+        EtherTypes::Ipv6 => handle_ipv6_packet(ethernet, new_packet_info),
+        EtherTypes::Arp => handle_arp_packet(ethernet, new_packet_info),
         _ => println!(
             "Unknown packet: {} > {}; ethertype: {:?} length: {}",
             ethernet.get_source(),
@@ -206,8 +244,8 @@ fn handle_ethernet_frame(ethernet: &EthernetPacket) {
 
 fn print_devices(){
     let interfaces = datalink::interfaces();
-    for inter in interfaces.into_iter() {
-        println!("{:?} {:?}", inter.name, inter.description);
+    for (i,inter) in interfaces.into_iter().enumerate() {
+        println!("{}:   {:?} {:?}", i, inter.name, inter.description);
     }
 }
 
@@ -226,27 +264,198 @@ fn find_my_device_name(index: usize) -> String {
     return datalink::interfaces().get(index).unwrap().clone().name;
 }
 
+#[derive(Debug, Eq, PartialEq, Hash)]
+pub enum Protocol{
+    Ethernet,
+    Arp,
+    IpV4,
+    IpV6,
+    Udp,
+    Tcp,
+    IcmpV4,
+    IcmpV6,
+    None
+}
+
+impl Display for Protocol {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match *self {
+            Protocol::Ethernet => write!(f, "Ethernet"),
+            Protocol::Arp => write!(f, "ARP"),
+            Protocol::IpV4 => write!(f, "IP version 4"),
+            Protocol::IpV6 => write!(f, "IP version 6"),
+            Protocol::Udp => write!(f, "UDP"),
+            Protocol::Tcp => write!(f, "TCP"),
+            Protocol::IcmpV4 => write!(f, "ICMP version 4"),
+            Protocol::IcmpV6 => write!(f, "ICMP version 6"),
+            Protocol::None => write!(f, "None"),
+        }
+    }
+}
+
+#[derive(Debug)]
+struct PacketInfo{
+    ip_sorg: Option<IpAddr>,
+    ip_dest: Option<IpAddr>,
+    prt_sorg: u16,
+    prt_dest: u16,
+    protocol: Protocol,
+    dim: usize, //TODO: ok dimensione?
+    arrival_time: Option<Duration>
+}
+
+impl PacketInfo {
+    pub fn new() -> Self{
+        return PacketInfo{
+            ip_sorg: None,
+            ip_dest: None,
+            prt_sorg: 0,
+            prt_dest: 0,
+            protocol: Protocol::None,
+            dim: 0,
+            arrival_time: None
+        }
+    }
+
+    pub fn set_dim(&mut self, dim: usize){
+        self.dim = dim
+    }
+
+    pub fn set_time(&mut self, time: Duration){
+        self.arrival_time = Some(time)
+    }
+
+    pub fn set_ip_sorgente(&mut self, ip_sorg: IpAddr){
+        self.ip_sorg = Some(ip_sorg);
+    }
+
+    pub fn set_ip_destinazione(&mut self, ip_dest: IpAddr){
+        self.ip_dest = Some(ip_dest);
+    }
+
+    pub fn set_porta_sorgente(&mut self, porta_sorg: u16){
+        self.prt_sorg = porta_sorg;
+    }
+
+    pub fn set_porta_destinazione(&mut self, porta_dest: u16){
+        self.prt_dest = porta_dest;
+    }
+
+    pub fn set_protocol(&mut self, protocol: Protocol){
+        self.protocol = protocol
+    }
+
+}
+
+#[derive(Debug)]
+struct ConversationSummary {
+    tot_bytes: usize,
+    starting_time: Option<Duration>,
+    ending_time: Option<Duration>
+}
+
+impl ConversationSummary {
+    pub fn new() -> Self{
+        return ConversationSummary{
+            tot_bytes: 0,
+            starting_time: None,
+            ending_time: None
+        }
+    }
+
+    pub fn with_details(tot_bytes: usize, start: Duration, end: Duration) -> Self{
+        return ConversationSummary{
+            tot_bytes,
+            starting_time: Some(start),
+            ending_time: Some(end)
+        }
+    }
+    pub fn set_starting_time(&mut self, start: Duration){
+        self.starting_time = Some(start);
+    }
+
+    pub fn set_ending_time(&mut self, end: Duration){
+        self.ending_time = Some(end);
+    }
+}
+
+#[derive(Debug, Eq, Hash, PartialEq)]
+pub struct ConversationKey{
+    ip_srg: IpAddr,
+    ip_dest: IpAddr,
+    prt_srg: u16,
+    prt_dest: u16,
+    protocollo: Protocol
+}
+
+impl ConversationKey {
+    pub fn new_key(ip_srg: IpAddr,
+                   ip_dest: IpAddr,
+                   prt_srg: u16,
+                   prt_dest: u16,
+                   protocollo: Protocol)
+        -> Self{
+        return ConversationKey{
+            ip_srg, ip_dest, prt_srg, prt_dest, protocollo
+        }
+    }
+}
 fn main() {
+
+    let mut info_packets : Vec<PacketInfo> = vec![];
+    let mut convs_summaries: HashMap<ConversationKey, ConversationSummary> = HashMap::new();
+
+    /*
+    let key = ConversationKey::new_key(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), IpAddr::V4(Ipv4Addr::new(129, 0, 0, 1)), 15, 150, Protocol::Tcp);
+
+    let mut conv = ConversationSummary::new();
+    ConversationSummary::set_starting_time(&mut conv, SystemTime::now());
+    ConversationSummary::set_ending_time(&mut conv, SystemTime::now());
+
+    convs_summaries.insert(key, conv);
+    println!("{:?} {:?}", convs_summaries.keys(), convs_summaries.values());
+    */
     print_devices();
 
+    println!("Seleziona l'indice corrispondente ad una delle seguenti interfacce di rete:");
+    let mut my_index_str = String::new();
+
+    io::stdin().read_line(&mut my_index_str).expect("errore in lettura");
+
+    //TODO: controlla che index sia < di num interfacce
+    //TODO: gestire con ciclo invece che con expect
+    let my_index = my_index_str.trim().parse::<usize>().expect("errore, non hai inserito un numero valido");
+
     //non servirà con la console
-    let dev_name = find_my_device_name(0);
+    let dev_name = find_my_device_name(my_index);
+    print!("Ok, hai selezionato {:?}", dev_name);
 
     let interface = select_device_by_name(dev_name);
 
     // Create a channel to receive on
-    let (_, mut rx) = match datalink::channel(&interface, Default::default()) {
+    //TODO: in riga 167 del file lib.rs di pnet_datalink, la configurazione di default per creare un canale è impostata a mod promiscua
+    let (_, mut rx) = match datalink::channel(&interface, pnet_datalink::Config::default()) {
         Ok(Ethernet(tx, rx)) => (tx, rx),
         Ok(_) => panic!("unhandled channel type"),
         Err(e) => panic!("unable to create channel: {}", e),
     };
 
     println!("... sniffing the network...");
+    let time_0 = SystemTime::now();
     loop {
+        let intial_time = SystemTime::now().duration_since(time_0).expect("TIME ERROR");
+
+        //il frame ethernet è di 1518 byte -> sovradimensionato a 1600
         let mut buf: [u8; 1600] = [0u8; 1600];
         let mut new_ethernet_frame = MutableEthernetPacket::new(&mut buf[..]).unwrap();
+
+        let mut i = 0;
         match rx.next() {
             Ok(packet) => {
+
+                let mut new_packet_info = PacketInfo::new();
+                PacketInfo::set_time(&mut new_packet_info, intial_time);
+
                 let payload_offset;
                 if cfg!(any(target_os = "macos", target_os = "ios"))
                     && interface.is_up()
@@ -262,29 +471,50 @@ fn main() {
                         payload_offset = 0;
                     }
                     if packet.len() > payload_offset {
-                        let version = Ipv4Packet::new(&packet[payload_offset..])
-                            .unwrap()
-                            .get_version();
+                        let version = Ipv4Packet::new(&packet[payload_offset..]).unwrap().get_version();
+
                         if version == 4 {
+                            println!("CASO PARTICOLARE 1");
                             new_ethernet_frame.set_destination(MacAddr(0, 0, 0, 0, 0, 0));
                             new_ethernet_frame.set_source(MacAddr(0, 0, 0, 0, 0, 0));
                             new_ethernet_frame.set_ethertype(EtherTypes::Ipv4);
                             new_ethernet_frame.set_payload(&packet[payload_offset..]);
-                            handle_ethernet_frame(&new_ethernet_frame.to_immutable());
+                            handle_ethernet_frame(&new_ethernet_frame.to_immutable(), &mut new_packet_info);
                             continue;
                         } else if version == 6 {
+                            println!("CASO PARTICOLARE 2");
                             new_ethernet_frame.set_destination(MacAddr(0, 0, 0, 0, 0, 0));
                             new_ethernet_frame.set_source(MacAddr(0, 0, 0, 0, 0, 0));
                             new_ethernet_frame.set_ethertype(EtherTypes::Ipv6);
                             new_ethernet_frame.set_payload(&packet[payload_offset..]);
-                            handle_ethernet_frame(&new_ethernet_frame.to_immutable());
+                            handle_ethernet_frame(&new_ethernet_frame.to_immutable(), &mut new_packet_info);
                             continue;
                         }
                     }
                 }
-                handle_ethernet_frame(&EthernetPacket::new(packet).unwrap());
+                handle_ethernet_frame(&EthernetPacket::new(packet).unwrap(), &mut new_packet_info);
+
+                let key = ConversationKey::new_key(new_packet_info.ip_sorg.unwrap(),
+                                                       new_packet_info.ip_dest.unwrap(),
+                                                        new_packet_info.prt_sorg,
+                                                       new_packet_info.prt_dest,
+                                                       new_packet_info.protocol);
+                convs_summaries.entry(key).and_modify(|entry| {
+                    entry.tot_bytes += new_packet_info.dim;
+                    entry.ending_time = new_packet_info.arrival_time;
+                }).or_insert(ConversationSummary::with_details(new_packet_info.dim,
+                                                               new_packet_info.arrival_time.unwrap(),
+                                                               new_packet_info.arrival_time.unwrap()));
+                if i == 20{
+                    break;
+                }
+                i+=1;
             }
             Err(e) => panic!("packetdump: unable to receive packet: {}", e),
         }
+    }
+
+    for (key, elem) in &convs_summaries{
+        println!("{:?} {:?}", key, elem);
     }
 }
