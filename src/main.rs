@@ -222,15 +222,15 @@ fn select_device_by_name(name: String) -> NetworkInterface {
     return chosen_interface;
 }
 
-fn find_my_device_name() -> String {
-    return datalink::interfaces().first().unwrap().clone().name;
+fn find_my_device_name(index: usize) -> String {
+    return datalink::interfaces().get(index).unwrap().clone().name;
 }
 
 fn main() {
     print_devices();
 
     //non servirà con la console
-    let dev_name = find_my_device_name();
+    let dev_name = find_my_device_name(0);
 
     let interface = select_device_by_name(dev_name);
 
