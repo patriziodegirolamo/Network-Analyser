@@ -31,6 +31,16 @@ use std::net::{IpAddr, Ipv4Addr};
 use std::time::{Duration, SystemTime};
 //use std::process;
 
+fn handle_dns_packet(packet: &[u8], new_packet_info: &mut PacketInfo){
+    let dns = dns_parser::Packet::parse(packet);
+
+    if let Ok(dns) = dns {
+        PacketInfo::set_protocol(new_packet_info, Protocol::Dns);
+        println!("*******{:?}", dns);
+    }
+
+}
+
 fn handle_udp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_packet_info: &mut PacketInfo) {
     let udp = UdpPacket::new(packet);
 
@@ -41,11 +51,10 @@ fn handle_udp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_pac
         // Save them in the PacketInfo structure
         PacketInfo::set_porta_sorgente(new_packet_info,prt_srg);
         PacketInfo::set_porta_destinazione(new_packet_info, prt_dest);
-
-        if prt_srg =={
-
-        }
         PacketInfo::set_protocol(new_packet_info,Protocol::Udp);
+        if prt_srg == 53 || prt_dest == 53{
+            handle_dns_packet(udp.payload(), new_packet_info);
+        }
 
         println!(
             "UDP Packet: {}:{} > {}:{}; length: {}",
@@ -276,45 +285,35 @@ fn find_my_device_name(index: usize) -> String {
     return datalink::interfaces().get(index).unwrap().clone().name;
 }
 
-static WELL_KNOWN_PORTS: HashMap<(usize, Protocol), ApplicationProtocol> = HashMap::new();
+/*
+static WELL_KNOWN_PORTS_UDP: HashMap<usize, ApplicationProtocol> = HashMap::from(
+    [ (53, ApplicationProtocol::Dns), (68, ApplicationProtocol::Dhcp)]
+);
+
+static WELL_KNOWN_PORTS_TCP: HashMap<usize, ApplicationProtocol> = HashMap::from(
+  [
+      (22, ApplicationProtocol::Ssh), (23, ApplicationProtocol::Telnet),
+      (80, ApplicationProtocol::Http), (88, ApplicationProtocol::Kerberos),
+      (110, ApplicationProtocol::Pop), (143, ApplicationProtocol::Imap),
+      (443, ApplicationProtocol::Https), (465, ApplicationProtocol::Smtp),
+      (995, ApplicationProtocol::Pop3)
+  ]
+);
 
 pub enum ApplicationProtocol{
     Ssh,
     Telnet,
-    Dns,
-    Dhcp,
-    Http,
+    Dhcp, //c'è il parser
+    Http, //c'è il parser
     Kerberos,
     Pop,
     Imap,
-    Snmp,
     Https,
     Smtp,
     Pop3
 }
 
-//22/tcp	SSH - Secure login, file transfer (scp, sftp) e port forwarding
-23/tcp	Telnet insecure text communications
-25/tcp	SMTP - Simple Mail Transfer Protocol (E-mail)
-53/udp	DNS - Domain Name System
-67/udp	BOOTP Bootstrap Protocol (Server) e DHCP Dynamic Host Configuration Protocol (Server)
-68/udp	BOOTP Bootstrap Protocol (Client) e DHCP Dynamic Host Configuration Protocol (Client)
-69/udp	TFTP Trivial File Transfer Protocol
-80/tcp	HTTP HyperText Transfer Protocol (WWW)
-88/tcp	Kerberos Authenticating agent
-110/tcp	POP Post Office Protocol (E-mail)
-143/tcp	IMAP4 Internet Message Access Protocol (E-mail)
-161/udp	SNMP Simple Network Management Protocol (Agent)
-162/udp	SNMP Simple Network Management Protocol (Manager)
-443/tcp	HTTPS usato per il trasferimento sicuro di pagine web
-465/tcp	SMTP - Simple Mail Transfer Protocol (E-mail) su SSL
-554/udp	RTSP
-563/tcp	NNTP Network News Transfer Protocol (newsgroup Usenet) su SSL
-587/tcp	e-mail message submission (SMTP)
-993/tcp	IMAP4 Internet Message Access Protocol (E-mail) su SSL
-995/tcp	POP3 Post Office Protocol (E-mail) su SSL
-    None
-}
+ */
 
 #[derive(Debug, Eq, PartialEq, Hash)]
 pub enum Protocol{
@@ -326,6 +325,7 @@ pub enum Protocol{
     Tcp,
     IcmpV4,
     IcmpV6,
+    Dns,
     None
 }
 
@@ -340,6 +340,7 @@ impl Display for Protocol {
             Protocol::Tcp => write!(f, "TCP"),
             Protocol::IcmpV4 => write!(f, "ICMP version 4"),
             Protocol::IcmpV6 => write!(f, "ICMP version 6"),
+            Protocol::Dns => write!(f, "DNS"),
             Protocol::None => write!(f, "None"),
         }
     }

@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 pcap = "0.10.1"
 pnet_datalink = "0.31.0"
+dns-parser = "0.8"
 
 [dependencies.pnet]
 pnet = "0.31.0"
