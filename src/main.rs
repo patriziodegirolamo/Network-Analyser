@@ -32,14 +32,18 @@ use std::time::{Duration, SystemTime};
 //use std::process;
 
 fn handle_dns_packet(packet: &[u8], new_packet_info: &mut PacketInfo){
-    let dns = dns_parser::Packet::parse(packet);
 
-    if let Ok(dns) = dns {
+    if dns_parser::Packet::parse(packet).is_ok() {
         PacketInfo::set_protocol(new_packet_info, Protocol::Dns);
-        println!("*******{:?}", dns);
     }
-
 }
+fn handle_tls_packet(packet: &[u8], new_packet_info: &mut PacketInfo) {
+
+    if tls_parser::parse_tls_plaintext(packet).is_ok() || tls_parser::parse_tls_encrypted(packet).is_ok() {
+        PacketInfo::set_protocol(new_packet_info, Protocol::Tls);
+    }
+}
+
 
 fn handle_udp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_packet_info: &mut PacketInfo) {
     let udp = UdpPacket::new(packet);
@@ -129,8 +133,6 @@ fn handle_icmpv6_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_
 
 fn handle_tcp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_packet_info: &mut PacketInfo) {
     let tcp = TcpPacket::new(packet);
-
-
     if let Some(tcp) = tcp {
         // Extract the source and destination ports
         let prt_srg = tcp.get_source();
@@ -139,6 +141,8 @@ fn handle_tcp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_pac
         PacketInfo::set_porta_sorgente(new_packet_info,prt_srg);
         PacketInfo::set_porta_destinazione(new_packet_info, prt_dest);
         PacketInfo::set_protocol(new_packet_info,Protocol::Tcp);
+        // Check if the protocol carried is TLS
+        handle_tls_packet(tcp.payload(), new_packet_info);
 
         println!(
             "TCP Packet: {}:{} > {}:{}; length: {}",
@@ -326,6 +330,7 @@ pub enum Protocol{
     IcmpV4,
     IcmpV6,
     Dns,
+    Tls,
     None
 }
 
@@ -341,6 +346,7 @@ impl Display for Protocol {
             Protocol::IcmpV4 => write!(f, "ICMP version 4"),
             Protocol::IcmpV6 => write!(f, "ICMP version 6"),
             Protocol::Dns => write!(f, "DNS"),
+            Protocol::Tls => write!(f, "TLS"),
             Protocol::None => write!(f, "None"),
         }
     }
@@ -401,15 +407,15 @@ impl PacketInfo {
 }
 
 #[derive(Debug)]
-struct ConversationSummary {
+struct ConversationStats {
     tot_bytes: usize,
     starting_time: Option<Duration>,
     ending_time: Option<Duration>
 }
 
-impl ConversationSummary {
+impl ConversationStats {
     pub fn new() -> Self{
-        return ConversationSummary{
+        return ConversationStats{
             tot_bytes: 0,
             starting_time: None,
             ending_time: None
@@ -417,7 +423,7 @@ impl ConversationSummary {
     }
 
     pub fn with_details(tot_bytes: usize, start: Duration, end: Duration) -> Self{
-        return ConversationSummary{
+        return ConversationStats{
             tot_bytes,
             starting_time: Some(start),
             ending_time: Some(end)
@@ -453,62 +459,79 @@ impl ConversationKey {
         }
     }
 }
-fn main() {
 
-    let mut info_packets : Vec<PacketInfo> = vec![];
-    let mut convs_summaries: HashMap<ConversationKey, ConversationSummary> = HashMap::new();
+fn init_sniffing() -> (NetworkInterface, i32, &'static str, &'static str)
+{
+    /* Define the interface to use */
 
-    /*
-    let key = ConversationKey::new_key(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), IpAddr::V4(Ipv4Addr::new(129, 0, 0, 1)), 15, 150, Protocol::Tcp);
-
-    let mut conv = ConversationSummary::new();
-    ConversationSummary::set_starting_time(&mut conv, SystemTime::now());
-    ConversationSummary::set_ending_time(&mut conv, SystemTime::now());
-
-    convs_summaries.insert(key, conv);
-    println!("{:?} {:?}", convs_summaries.keys(), convs_summaries.values());
-    */
     print_devices();
 
-    println!("Seleziona l'indice corrispondente ad una delle seguenti interfacce di rete:");
+    println!("Which interface you want to sniff?");
     let mut my_index_str = String::new();
-
-    io::stdin().read_line(&mut my_index_str).expect("errore in lettura");
-
+    io::stdin().read_line(&mut my_index_str).expect("Error reading the index");
     //TODO: controlla che index sia < di num interfacce
     //TODO: gestire con ciclo invece che con expect
-    let my_index = my_index_str.trim().parse::<usize>().expect("errore, non hai inserito un numero valido");
+    let my_index = my_index_str.trim().parse::<usize>().expect("Error: inserted an invalid number");
 
-    //non servirà con la console
     let dev_name = find_my_device_name(my_index);
-    print!("Ok, hai selezionato {:?}", dev_name);
+    print!("Ok, you selected:  {:?}", dev_name);
 
     let interface = select_device_by_name(dev_name);
+    print!("Setting the interface in promiscous mode... "); // The promiscous mode is the default configuration (line 167 file lib.rs in pnet-datalink module)
+
+
+    // select time interval + check time interval
+    let timeInterval = 3;
+    // select file name + check file name
+    let fileName = "filename";
+    // select filtri + check filters
+    let filter = "filtro1 && filtro 2";
+
+    return (interface, timeInterval, fileName, filter);
+
+}
+fn main() {
+
+    let mut convs_summaries: HashMap<ConversationKey, ConversationStats> = HashMap::new();
+
+    /*
+    *  INITIALIZATION
+    *
+    */
+
+    let (interface, timeInterval, fileName, filter) = init_sniffing();
 
     // Create a channel to receive on
-    //TODO: in riga 167 del file lib.rs di pnet_datalink, la configurazione di default per creare un canale è impostata a mod promiscua
     let (_, mut rx) = match datalink::channel(&interface, pnet_datalink::Config::default()) {
         Ok(Ethernet(tx, rx)) => (tx, rx),
         Ok(_) => panic!("unhandled channel type"),
         Err(e) => panic!("unable to create channel: {}", e),
     };
-
-    println!("... sniffing the network...");
+    // record the initial time
     let time_0 = SystemTime::now();
+    println!("............................");
+    println!("... sniffing the network...");
+    println!("............................");
+    /*
+    *  SNIFFING
+    *
+    */
     let mut i = 0;
     loop {
-        let intial_time = SystemTime::now().duration_since(time_0).expect("TIME ERROR");
 
-        //il frame ethernet è di 1518 byte -> sovradimensionato a 1600
-        let mut buf: [u8; 1600] = [0u8; 1600];
+        let mut buf: [u8; 1600] = [0u8; 1600]; //il frame ethernet è di 1518 byte -> sovradimensionato a 1600
         let mut new_ethernet_frame = MutableEthernetPacket::new(&mut buf[..]).unwrap();
 
         match rx.next() {
             Ok(packet) => {
-
+                // Packet arrival time
+                let intial_time = SystemTime::now().duration_since(time_0).expect("TIME ERROR");
+                // Create a data structure to host the information got from the packet
                 let mut new_packet_info = PacketInfo::new();
+                // Set arrival packet time
                 PacketInfo::set_time(&mut new_packet_info, intial_time);
 
+                // Handle particular cases
                 let payload_offset;
                 if cfg!(any(target_os = "macos", target_os = "ios"))
                     && interface.is_up()
@@ -545,27 +568,37 @@ fn main() {
                         }
                     }
                 }
+
+                // Parse the ethernet frame
                 handle_ethernet_frame(&EthernetPacket::new(packet).unwrap(), &mut new_packet_info);
 
+                // Create the key of the packet considering (ip_sorg, ip_dest, port_sorg, port_dest, prot)
                 let key = ConversationKey::new_key(new_packet_info.ip_sorg.unwrap(),
-                                                       new_packet_info.ip_dest.unwrap(),
-                                                        new_packet_info.prt_sorg,
-                                                       new_packet_info.prt_dest,
-                                                       new_packet_info.protocol);
-                convs_summaries.entry(key).and_modify(|entry| {
-                    entry.tot_bytes += new_packet_info.dim;
-                    entry.ending_time = new_packet_info.arrival_time;
-                }).or_insert(ConversationSummary::with_details(new_packet_info.dim,
-                                                               new_packet_info.arrival_time.unwrap(),
-                                                               new_packet_info.arrival_time.unwrap()));
+                                                                new_packet_info.ip_dest.unwrap(),
+                                                                new_packet_info.prt_sorg,
+                                                                       new_packet_info.prt_dest,
+                                                              new_packet_info.protocol);
+                // If the packet belongs to a conversation already present in the map, update the stats, otherwise add a new record
+                convs_summaries.entry(key)
+                                .and_modify(|entry| {
+                                                                        entry.tot_bytes += new_packet_info.dim;
+                                                                        entry.ending_time = new_packet_info.arrival_time;})
+                                .or_insert(ConversationStats::with_details(new_packet_info.dim,
+                                                                           new_packet_info.arrival_time.unwrap(),
+                                                                           new_packet_info.arrival_time.unwrap()));
             }
             Err(e) => panic!("packetdump: unable to receive packet: {}", e),
         }
-        if i == 1000{
+        if i == 100{
             break;
         }
         i+=1;
     }
+
+    /*
+    *  PRINT
+    *
+    */
 
     for (key, elem) in &convs_summaries{
         println!("{:?} {:?}", key, elem);
