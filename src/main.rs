@@ -34,15 +34,15 @@ use std::time::{Duration, SystemTime};
 fn handle_udp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_packet_info: &mut PacketInfo) {
     let udp = UdpPacket::new(packet);
 
-    let prt_srg = udp.get_source();
-    let prt_dest = udp.get_destination();
-
-    PacketInfo::set_porta_sorgente(new_packet_info,prt_srg);
-    PacketInfo::set_porta_destinazione(new_packet_info, prt_dest);
-    PacketInfo::set_protocol(new_packet_info,Protocol::Udp);
-
-
     if let Some(udp) = udp {
+        // Extract the source and destination port
+        let prt_srg = udp.get_source();
+        let prt_dest = udp.get_destination();
+        // Save them in the PacketInfo structure
+        PacketInfo::set_porta_sorgente(new_packet_info,prt_srg);
+        PacketInfo::set_porta_destinazione(new_packet_info, prt_dest);
+        PacketInfo::set_protocol(new_packet_info,Protocol::Udp);
+
         println!(
             "UDP Packet: {}:{} > {}:{}; length: {}",
             source,
@@ -58,9 +58,11 @@ fn handle_udp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_pac
 
 fn handle_icmp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_packet_info: &mut PacketInfo) {
     let icmp_packet = IcmpPacket::new(packet);
-    PacketInfo::set_protocol(new_packet_info,Protocol::IcmpV4);
 
     if let Some(icmp_packet) = icmp_packet {
+        // Save the protocol type in the PacketInfo structure
+        PacketInfo::set_protocol(new_packet_info,Protocol::IcmpV4);
+        // TODO: tipo di icmp???
         match icmp_packet.get_icmp_type() {
             IcmpTypes::EchoReply => {
                 let echo_reply_packet = echo_reply::EchoReplyPacket::new(packet).unwrap();
@@ -89,6 +91,7 @@ fn handle_icmp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_pa
                 icmp_packet.get_icmp_type()
             ),
         }
+
     } else {
         println!("Malformed ICMP Packet");
     }
@@ -96,8 +99,10 @@ fn handle_icmp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_pa
 
 fn handle_icmpv6_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_packet_info: &mut PacketInfo) {
     let icmpv6_packet = Icmpv6Packet::new(packet);
-    PacketInfo::set_protocol(new_packet_info,Protocol::IcmpV6);
+
     if let Some(icmpv6_packet) = icmpv6_packet {
+        // Save the protocol type in the PacketInfo structure
+        PacketInfo::set_protocol(new_packet_info,Protocol::IcmpV6);
         println!(
             "ICMPv6 packet {} -> {} (type={:?})",
             source,
@@ -112,15 +117,16 @@ fn handle_icmpv6_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_
 fn handle_tcp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_packet_info: &mut PacketInfo) {
     let tcp = TcpPacket::new(packet);
 
-    let prt_srg = tcp.get_source();
-    let prt_dest = tcp.get_destination();
-
-    PacketInfo::set_porta_sorgente(new_packet_info,prt_srg);
-    PacketInfo::set_porta_destinazione(new_packet_info, prt_dest);
-    PacketInfo::set_protocol(new_packet_info,Protocol::Tcp);
-
 
     if let Some(tcp) = tcp {
+        // Extract the source and destination ports
+        let prt_srg = tcp.get_source();
+        let prt_dest = tcp.get_destination();
+        // Save them in the PacketInfo structure
+        PacketInfo::set_porta_sorgente(new_packet_info,prt_srg);
+        PacketInfo::set_porta_destinazione(new_packet_info, prt_dest);
+        PacketInfo::set_protocol(new_packet_info,Protocol::Tcp);
+
         println!(
             "TCP Packet: {}:{} > {}:{}; length: {}",
             source,
@@ -134,13 +140,7 @@ fn handle_tcp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_pac
     }
 }
 
-fn handle_transport_protocol(
-    source: IpAddr,
-    destination: IpAddr,
-    protocol: IpNextHeaderProtocol,
-    packet: &[u8],
-    new_packet_info: &mut PacketInfo
-) {
+fn handle_transport_protocol(source: IpAddr, destination: IpAddr, protocol: IpNextHeaderProtocol, packet: &[u8], new_packet_info: &mut PacketInfo) {
     match protocol {
         IpNextHeaderProtocols::Udp => {
             handle_udp_packet(source, destination, packet, new_packet_info)
@@ -170,11 +170,14 @@ fn handle_transport_protocol(
 
 fn handle_ipv4_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInfo) {
     let header = Ipv4Packet::new(ethernet.payload());
-    let ip_sorg = IpAddr::V4(header.get_source());
-    let ip_dest = IpAddr::V4(header.get_destination());
-    PacketInfo::set_ip_sorgente(new_packet_info, ip_sorg);
-    PacketInfo::set_ip_destinazione(new_packet_info, ip_dest);
+
     if let Some(header) = header {
+        // Extract the source and destination ip address
+        let ip_sorg = IpAddr::V4(header.get_source());
+        let ip_dest = IpAddr::V4(header.get_destination());
+        // Save them in the Packet Info structure
+        PacketInfo::set_ip_sorgente(new_packet_info, ip_sorg);
+        PacketInfo::set_ip_destinazione(new_packet_info, ip_dest);
         handle_transport_protocol(
             ip_sorg,
             ip_dest,
@@ -189,11 +192,14 @@ fn handle_ipv4_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInf
 
 fn handle_ipv6_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInfo) {
     let header = Ipv6Packet::new(ethernet.payload());
-    let ip_sorg = IpAddr::V6(header.get_source());
-    let ip_dest = IpAddr::V6(header.get_destination());
-    PacketInfo::set_ip_sorgente(new_packet_info, ip_sorg);
-    PacketInfo::set_ip_destinazione(new_packet_info, ip_dest);
+
     if let Some(header) = header {
+        // Extract the source and destination ip address
+        let ip_sorg = IpAddr::V6(header.get_source());
+        let ip_dest = IpAddr::V6(header.get_destination());
+        // Save them in the Packet Info structure
+        PacketInfo::set_ip_sorgente(new_packet_info, ip_sorg);
+        PacketInfo::set_ip_destinazione(new_packet_info, ip_dest);
         handle_transport_protocol(
             ip_sorg,
             ip_dest,
