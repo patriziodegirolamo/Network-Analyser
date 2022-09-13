@@ -41,6 +41,10 @@ fn handle_udp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_pac
         // Save them in the PacketInfo structure
         PacketInfo::set_porta_sorgente(new_packet_info,prt_srg);
         PacketInfo::set_porta_destinazione(new_packet_info, prt_dest);
+
+        if prt_srg =={
+
+        }
         PacketInfo::set_protocol(new_packet_info,Protocol::Udp);
 
         println!(
@@ -215,9 +219,11 @@ fn handle_ipv6_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInf
 fn handle_arp_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInfo) {
     let header = ArpPacket::new(ethernet.payload());
 
-    //TODO: DA GESTIRE
-
     if let Some(header) = header {
+        PacketInfo::set_ip_sorgente(new_packet_info, IpAddr::V4( header.get_sender_proto_addr()));
+        PacketInfo::set_ip_destinazione(new_packet_info, IpAddr::V4(header.get_target_proto_addr()));
+        PacketInfo::set_protocol(new_packet_info, Protocol::Arp);
+
         println!(
             "ARP packet: {}({}) > {}({}); operation: {:?}",
             ethernet.get_source(),
@@ -232,7 +238,7 @@ fn handle_arp_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInfo
 }
 
 fn handle_ethernet_frame(ethernet: &EthernetPacket, new_packet_info: &mut PacketInfo) {
-    PacketInfo::set_dim(new_packet_info, ethernet.packet().len);
+    PacketInfo::set_dim(new_packet_info, ethernet.packet().len());
     new_packet_info.dim = ethernet.packet().len();
     match ethernet.get_ethertype() {
         EtherTypes::Ipv4 => handle_ipv4_packet(ethernet, new_packet_info),
@@ -268,6 +274,46 @@ fn select_device_by_name(name: String) -> NetworkInterface {
 
 fn find_my_device_name(index: usize) -> String {
     return datalink::interfaces().get(index).unwrap().clone().name;
+}
+
+static WELL_KNOWN_PORTS: HashMap<(usize, Protocol), ApplicationProtocol> = HashMap::new();
+
+pub enum ApplicationProtocol{
+    Ssh,
+    Telnet,
+    Dns,
+    Dhcp,
+    Http,
+    Kerberos,
+    Pop,
+    Imap,
+    Snmp,
+    Https,
+    Smtp,
+    Pop3
+}
+
+//22/tcp	SSH - Secure login, file transfer (scp, sftp) e port forwarding
+23/tcp	Telnet insecure text communications
+25/tcp	SMTP - Simple Mail Transfer Protocol (E-mail)
+53/udp	DNS - Domain Name System
+67/udp	BOOTP Bootstrap Protocol (Server) e DHCP Dynamic Host Configuration Protocol (Server)
+68/udp	BOOTP Bootstrap Protocol (Client) e DHCP Dynamic Host Configuration Protocol (Client)
+69/udp	TFTP Trivial File Transfer Protocol
+80/tcp	HTTP HyperText Transfer Protocol (WWW)
+88/tcp	Kerberos Authenticating agent
+110/tcp	POP Post Office Protocol (E-mail)
+143/tcp	IMAP4 Internet Message Access Protocol (E-mail)
+161/udp	SNMP Simple Network Management Protocol (Agent)
+162/udp	SNMP Simple Network Management Protocol (Manager)
+443/tcp	HTTPS usato per il trasferimento sicuro di pagine web
+465/tcp	SMTP - Simple Mail Transfer Protocol (E-mail) su SSL
+554/udp	RTSP
+563/tcp	NNTP Network News Transfer Protocol (newsgroup Usenet) su SSL
+587/tcp	e-mail message submission (SMTP)
+993/tcp	IMAP4 Internet Message Access Protocol (E-mail) su SSL
+995/tcp	POP3 Post Office Protocol (E-mail) su SSL
+    None
 }
 
 #[derive(Debug, Eq, PartialEq, Hash)]
@@ -448,6 +494,7 @@ fn main() {
 
     println!("... sniffing the network...");
     let time_0 = SystemTime::now();
+    let mut i = 0;
     loop {
         let intial_time = SystemTime::now().duration_since(time_0).expect("TIME ERROR");
 
@@ -455,7 +502,6 @@ fn main() {
         let mut buf: [u8; 1600] = [0u8; 1600];
         let mut new_ethernet_frame = MutableEthernetPacket::new(&mut buf[..]).unwrap();
 
-        let mut i = 0;
         match rx.next() {
             Ok(packet) => {
 
@@ -511,13 +557,13 @@ fn main() {
                 }).or_insert(ConversationSummary::with_details(new_packet_info.dim,
                                                                new_packet_info.arrival_time.unwrap(),
                                                                new_packet_info.arrival_time.unwrap()));
-                if i == 20{
-                    break;
-                }
-                i+=1;
             }
             Err(e) => panic!("packetdump: unable to receive packet: {}", e),
         }
+        if i == 1000{
+            break;
+        }
+        i+=1;
     }
 
     for (key, elem) in &convs_summaries{
