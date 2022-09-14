@@ -10,5 +10,7 @@ pcap = "0.10.1"
 pnet_datalink = "0.31.0"
 dns-parser = "0.8"  # Library used to parse DNS packets
 tls-parser = "0.7"  # Library used to parse TLS packets
+
+prettytable-rs = "^0.9"
 [dependencies.pnet]
 pnet = "0.31.0"

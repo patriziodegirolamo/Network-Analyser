@@ -29,7 +29,124 @@ use pnet_datalink::Channel::Ethernet as Ethernet;
 use std::io::{self, Write};
 use std::net::{IpAddr, Ipv4Addr};
 use std::time::{Duration, SystemTime};
+use prettytable::{Attr, Cell, Row, Table};
+#[macro_use] extern crate prettytable;
+
 //use std::process;
+
+/*
+*  INITIALIZATION FUNCTIONS
+*
+*/
+
+fn print_devices(){
+    let interfaces = datalink::interfaces();
+    for (i,inter) in interfaces.into_iter().enumerate() {
+        println!("{}:   {:?} {:?}", i, inter.name, inter.description);
+    }
+}
+
+fn select_device_by_name(name: String) -> NetworkInterface {
+    let interfaces = datalink::interfaces();
+    let chosen_interface = interfaces
+        .into_iter()
+        .filter(|inter| inter.name == name)
+        .next()
+        .unwrap_or_else(|| panic!("No such network interface: {}", name));
+    println!("selected device: {:?}", chosen_interface.name);
+    return chosen_interface;
+}
+
+fn find_my_device_name(index: usize) -> String {
+    return datalink::interfaces().get(index).unwrap().clone().name;
+}
+
+
+fn init_sniffing() -> (NetworkInterface, i32, &'static str, &'static str)
+{
+    /* Define the interface to use */
+
+    print_devices();
+
+    println!("Which interface you want to sniff?");
+    let mut my_index_str = String::new();
+    io::stdin().read_line(&mut my_index_str).expect("Error reading the index");
+    //TODO: controlla che index sia < di num interfacce
+    //TODO: gestire con ciclo invece che con expect
+    let my_index = my_index_str.trim().parse::<usize>().expect("Error: inserted an invalid number");
+
+    let dev_name = find_my_device_name(my_index);
+    println!("Ok, you selected:  {:?}", dev_name);
+
+    let interface = select_device_by_name(dev_name);
+    println!("Setting the interface in promiscous mode... "); // The promiscous mode is the default configuration (line 167 file lib.rs in pnet-datalink module)
+
+
+    // select time interval + check time interval
+    let timeInterval = 3;
+    // select file name + check file name
+    let fileName = "filename";
+    // select filtri + check filters
+    let filter = "filtro1 && filtro 2";
+
+    return (interface, timeInterval, fileName, filter);
+
+}
+
+
+/*
+*  PRINT on FiLE FUNCTIONS
+*
+*/
+
+use std::fs::{File};
+
+fn open_file(filename: String) -> io::Result<File> {
+    return File::options().write(true).truncate(true).create(true).open(filename);
+}
+
+fn write_summaries(file: &mut File, convs_summaries: HashMap<ConversationKey, ConversationStats>){
+
+    // Create the table
+    let mut table = Table::new();
+
+    table.add_row(Row::new(vec![
+        Cell::new("Ip_srg").style_spec("b"),
+        Cell::new("Prt_srg").style_spec("b"),
+        Cell::new("Ip_dest").style_spec("b"),
+        Cell::new("Prt_dest").style_spec("b"),
+        Cell::new("Protocol").style_spec("b"),
+        Cell::new("Tot_bytes").style_spec("b"),
+        Cell::new("starting_time (nano_s)").style_spec("b"),
+        Cell::new("ending_time (nano_s)").style_spec("b")
+    ]));
+
+
+    for (key, elem) in &convs_summaries{
+
+        table.add_row(Row::new(vec![
+            Cell::new(&*key.ip_srg.to_string()), // s  : String -> *s : str (via Deref<Target=str>) -> &*s: &str
+            Cell::new(&*key.prt_srg.to_string()),
+            Cell::new(&*key.ip_dest.to_string()),
+
+            Cell::new(&*key.prt_dest.to_string()),
+            Cell::new(&*key.protocol.to_string()),
+
+            Cell::new(&*elem.tot_bytes.to_string()),
+            Cell::new(&*elem.starting_time.unwrap().as_nanos().to_string()),
+            Cell::new(&*elem.ending_time.unwrap().as_nanos().to_string())
+        ]));
+    }
+
+    // Print the table on file
+    table.print(file);
+
+}
+
+/*
+*  PROTOCOLS HANDLE FUNCTIONS
+*
+*/
 
 fn handle_dns_packet(packet: &[u8], new_packet_info: &mut PacketInfo){
 
@@ -37,13 +154,13 @@ fn handle_dns_packet(packet: &[u8], new_packet_info: &mut PacketInfo){
         PacketInfo::set_protocol(new_packet_info, Protocol::Dns);
     }
 }
+
 fn handle_tls_packet(packet: &[u8], new_packet_info: &mut PacketInfo) {
 
     if tls_parser::parse_tls_plaintext(packet).is_ok() || tls_parser::parse_tls_encrypted(packet).is_ok() {
         PacketInfo::set_protocol(new_packet_info, Protocol::Tls);
     }
 }
-
 
 fn handle_udp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_packet_info: &mut PacketInfo) {
     let udp = UdpPacket::new(packet);
@@ -267,28 +384,6 @@ fn handle_ethernet_frame(ethernet: &EthernetPacket, new_packet_info: &mut Packet
     }
 }
 
-fn print_devices(){
-    let interfaces = datalink::interfaces();
-    for (i,inter) in interfaces.into_iter().enumerate() {
-        println!("{}:   {:?} {:?}", i, inter.name, inter.description);
-    }
-}
-
-fn select_device_by_name(name: String) -> NetworkInterface {
-    let interfaces = datalink::interfaces();
-    let chosen_interface = interfaces
-        .into_iter()
-        .filter(|inter| inter.name == name)
-        .next()
-        .unwrap_or_else(|| panic!("No such network interface: {}", name));
-    println!("selected device: {:?}", chosen_interface.name);
-    return chosen_interface;
-}
-
-fn find_my_device_name(index: usize) -> String {
-    return datalink::interfaces().get(index).unwrap().clone().name;
-}
-
 /*
 static WELL_KNOWN_PORTS_UDP: HashMap<usize, ApplicationProtocol> = HashMap::from(
     [ (53, ApplicationProtocol::Dns), (68, ApplicationProtocol::Dhcp)]
@@ -319,6 +414,12 @@ pub enum ApplicationProtocol{
 
  */
 
+
+/*
+*  DATA STRUCTURES
+*/
+
+/* -------- Protocol enum ---------*/
 #[derive(Debug, Eq, PartialEq, Hash)]
 pub enum Protocol{
     Ethernet,
@@ -352,6 +453,7 @@ impl Display for Protocol {
     }
 }
 
+/* -------- Packet info structure ---------*/
 #[derive(Debug)]
 struct PacketInfo{
     ip_sorg: Option<IpAddr>,
@@ -406,6 +508,7 @@ impl PacketInfo {
 
 }
 
+/* -------- Conversation Stats struct ---------*/
 #[derive(Debug)]
 struct ConversationStats {
     tot_bytes: usize,
@@ -438,13 +541,14 @@ impl ConversationStats {
     }
 }
 
+/* -------- Conversation Key struct ---------*/
 #[derive(Debug, Eq, Hash, PartialEq)]
 pub struct ConversationKey{
     ip_srg: IpAddr,
     ip_dest: IpAddr,
     prt_srg: u16,
     prt_dest: u16,
-    protocollo: Protocol
+    protocol: Protocol
 }
 
 impl ConversationKey {
@@ -452,44 +556,15 @@ impl ConversationKey {
                    ip_dest: IpAddr,
                    prt_srg: u16,
                    prt_dest: u16,
-                   protocollo: Protocol)
+                   protocol: Protocol)
         -> Self{
         return ConversationKey{
-            ip_srg, ip_dest, prt_srg, prt_dest, protocollo
+            ip_srg, ip_dest, prt_srg, prt_dest,
+            protocol: protocol
         }
     }
 }
 
-fn init_sniffing() -> (NetworkInterface, i32, &'static str, &'static str)
-{
-    /* Define the interface to use */
-
-    print_devices();
-
-    println!("Which interface you want to sniff?");
-    let mut my_index_str = String::new();
-    io::stdin().read_line(&mut my_index_str).expect("Error reading the index");
-    //TODO: controlla che index sia < di num interfacce
-    //TODO: gestire con ciclo invece che con expect
-    let my_index = my_index_str.trim().parse::<usize>().expect("Error: inserted an invalid number");
-
-    let dev_name = find_my_device_name(my_index);
-    print!("Ok, you selected:  {:?}", dev_name);
-
-    let interface = select_device_by_name(dev_name);
-    print!("Setting the interface in promiscous mode... "); // The promiscous mode is the default configuration (line 167 file lib.rs in pnet-datalink module)
-
-
-    // select time interval + check time interval
-    let timeInterval = 3;
-    // select file name + check file name
-    let fileName = "filename";
-    // select filtri + check filters
-    let filter = "filtro1 && filtro 2";
-
-    return (interface, timeInterval, fileName, filter);
-
-}
 fn main() {
 
     let mut convs_summaries: HashMap<ConversationKey, ConversationStats> = HashMap::new();
@@ -512,10 +587,12 @@ fn main() {
     println!("............................");
     println!("... sniffing the network...");
     println!("............................");
+
     /*
     *  SNIFFING
     *
     */
+
     let mut i = 0;
     loop {
 
@@ -600,7 +677,9 @@ fn main() {
     *
     */
 
-    for (key, elem) in &convs_summaries{
-        println!("{:?} {:?}", key, elem);
-    }
+    let mut file = open_file("report.txt".to_string()).expect("ERRORE FILE");
+    write_summaries(&mut file, convs_summaries);
+
+
+
 }
