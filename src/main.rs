@@ -566,7 +566,7 @@ pub enum Protocol{
     IcmpV4,
     IcmpV6,
     Dns,
-    Tls
+    Tls,
     None
 }
 
