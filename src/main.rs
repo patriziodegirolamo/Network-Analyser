@@ -94,14 +94,18 @@ fn init_sniffing() -> (NetworkInterface, i32, String, String)
     filename = filename.trim().to_string();
 
     // select filtri + check filters
-    println!("Please, insert a filter in terms of: port");
-    let mut filter = String::new();
-    filter = "ciao".to_string();
+    let mut filter = Filter::new();
+    let filters_enum = [FilterEnum::IsoOsiProtocol, FilterEnum::IpSorg, FilterEnum::IpDest, FilterEnum::PortSorg, FilterEnum::PortDest];
+    for filt in filters_enum{
+        //filter.populate(filt);
+    }
 
-    return (interface, time_interval, filename, filter);
 
+    let mut f = String::new();
+    f = "ciao".to_string();
+
+    return (interface, time_interval, filename, f);
 }
-
 /*
 *  PRINT on FiLE FUNCTIONS
 *
@@ -109,6 +113,8 @@ fn init_sniffing() -> (NetworkInterface, i32, String, String)
 
 use std::fs::{File};
 use std::ops::Deref;
+use std::str::FromStr;
+use dns_parser::rdata::Opt;
 
 fn open_file(filename: String) -> io::Result<File> {
     return File::options().write(true).truncate(true).create(true).open(filename);
@@ -444,6 +450,27 @@ pub enum Protocol{
     None
 }
 
+impl FromStr for Protocol {
+    type Err = ();
+
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        match input {
+            "Ethernet" => Ok(Protocol::Ethernet),
+            "Arp" => Ok(Protocol::Arp),
+            "IpV4" => Ok(Protocol::IpV4),
+            "IpV6" => Ok(Protocol::IpV6),
+            "Udp" => Ok(Protocol::Udp),
+            "Tcp" => Ok(Protocol::Tcp),
+            "IcmpV4" => Ok(Protocol::IcmpV4),
+            "IcmpV6" => Ok(Protocol::IcmpV6),
+            "Dns" => Ok(Protocol::Dns),
+            "Tls" => Ok(Protocol::Tls),
+            "None" => Ok(Protocol::None),
+            _ => Err(()),
+        }
+    }
+}
+
 impl Display for Protocol {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match *self {
@@ -571,6 +598,162 @@ impl ConversationKey {
             ip_srg, ip_dest, prt_srg, prt_dest,
             protocol
         }
+    }
+}
+
+pub enum FilterEnum{
+    IpSorg,
+    IpDest,
+    PortSorg,
+    PortDest,
+    IsoOsiProtocol
+}
+
+#[derive(Debug)]
+pub struct Filter{
+    ip_srg: Option<IpAddr>,
+    ip_dest: Option<IpAddr>,
+    prt_srg: Option<u16>,
+    prt_dest: Option<u16>,
+    protocol: Protocol
+}
+
+impl Filter {
+    pub fn new() -> Self{
+        return Filter{
+            ip_srg: None,
+            ip_dest: None,
+            prt_srg: None,
+            prt_dest: None,
+            protocol: Protocol::None
+        }
+    }
+    pub fn set_ip_srg(&mut self, ip: IpAddr){
+        self.ip_srg = Some(ip);
+    }
+    pub fn set_ip_dest(&mut self, ip: IpAddr){
+        self.ip_dest = Some(ip);
+    }
+    pub fn set_prt_srg(&mut self, prt: u16){
+        self.prt_srg = Some(prt);
+    }
+    pub fn set_prt_dest(&mut self, prt: u16){
+        self.prt_dest = Some(prt);
+    }
+    pub fn set_protocol(&mut self, protocol: Protocol){
+        self.protocol = protocol;
+    }
+
+    pub fn populate(&mut self, filter_enum: FilterEnum){
+        match filter_enum {
+            FilterEnum::IpSorg => {
+                let mut ip = String::new();
+                println!("Please insert the source IP address or _");
+                loop{
+                    io::stdin().read_line(&mut ip).expect("Error reading the source IP address");
+                    ip = ip.trim().to_string();
+
+                    if ip == "_".to_string(){
+                        self.ip_srg = None;
+                        break;
+                    }
+                    match ip.parse::<IpAddr>(){
+                        Ok(address) => {
+                            self.ip_srg = Some(address);
+                        }
+                        Err(err) => {
+                            println!("Please, insert a correct IP address or _!");
+                        }
+                    }
+                }
+            }
+            FilterEnum::IpDest => {
+                let mut ip = String::new();
+                println!("Please insert the destination IP address or _");
+                loop{
+                    io::stdin().read_line(&mut ip).expect("Error reading the source IP address");
+                    ip = ip.trim().to_string();
+
+                    if ip == "_".to_string(){
+                        self.ip_dest = None;
+                        break;
+                    }
+                    match ip.parse::<IpAddr>(){
+                        Ok(address) => {
+                            self.ip_dest = Some(address);
+                        }
+                        Err(err) => {
+                            println!("Please, insert a correct port number!");
+                        }
+                    }
+                }
+            }
+            FilterEnum::PortSorg => {
+                let mut prt = String::new();
+                println!("Please insert the source port or _");
+
+                loop{
+                    io::stdin().read_line(&mut prt).expect("Error reading the source port");
+                    prt = prt.trim().to_string();
+
+                    if prt == "_".to_string(){
+                        self.prt_srg = None;
+                        break;
+                    }
+                    match prt.parse::<u16>(){
+                        Ok(port) => {
+                            self.prt_srg = Some(port);
+                        }
+                        Err(_) => {
+                            println!("Please, insert a correct port number!");
+                        }
+                    }
+                }
+            }
+            FilterEnum::PortDest => {
+                let mut prt = String::new();
+                println!("Please insert the destination port or _");
+                loop{
+                    io::stdin().read_line(&mut prt).expect("Error reading the destination port");
+                    prt = prt.trim().to_string();
+
+                    if prt == "_".to_string(){
+                        self.prt_dest = None;
+                        break;
+                    }
+                    match prt.parse::<u16>(){
+                        Ok(port) => {
+                            self.prt_dest = Some(port);
+                        }
+                        Err(_) => {
+                            println!("Please, insert a correct port number!");
+                        }
+                    }
+                }
+            }
+            FilterEnum::IsoOsiProtocol => {
+                let mut prot = String::new();
+                println!("Please insert the chosen protocol or _");
+                loop{
+                    io::stdin().read_line(&mut prot).expect("Error reading the source IP address");
+                    prot = prot.trim().to_string();
+
+                    if prot == "_".to_string(){
+                        self.protocol = Protocol::None;
+                        break;
+                    }
+                    match prot.parse::<Protocol>(){
+                        Ok(protocol) => {
+                            self.protocol = protocol;
+                        }
+                        Err(_) => {
+                            println!("Please, insert a correct protocol name!");
+                        }
+                    }
+                }
+            }
+        }
+
     }
 }
 
