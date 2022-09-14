@@ -39,11 +39,15 @@ use prettytable::{Attr, Cell, Row, Table};
 *
 */
 
-fn print_devices(){
+fn print_devices() -> usize{
     let interfaces = datalink::interfaces();
+    let tot = interfaces.len();
+
     for (i,inter) in interfaces.into_iter().enumerate() {
         println!("{}:   {:?} {:?}", i, inter.name, inter.description);
     }
+
+    return tot;
 }
 
 fn select_device_by_name(name: String) -> NetworkInterface {
@@ -53,7 +57,7 @@ fn select_device_by_name(name: String) -> NetworkInterface {
         .filter(|inter| inter.name == name)
         .next()
         .unwrap_or_else(|| panic!("No such network interface: {}", name));
-    println!("selected device: {:?}", chosen_interface.name);
+
     return chosen_interface;
 }
 
@@ -62,49 +66,165 @@ fn find_my_device_name(index: usize) -> String {
 }
 
 
-fn init_sniffing() -> (NetworkInterface, i32, String, String)
-{
+fn init_sniffing() -> (NetworkInterface, usize, String, Filter)
+{   //TODO: handle the closing!!!!!
+    println!();
+    println!("*************************************************************");
+    println!("*************************************************************");
+    println!("*************  N E T W O R K    S N I F F E R  **************");
+    println!("*************************************************************");
+    println!("*************************************************************");
+    println!();
+    println!();
+    println!("*************************************************************");
+    println!("                      INITIALIZATION                         ");
+    println!("*************************************************************");
     /* Define the interface to use */
+    println!();
+    println!("> Which of the following interfaces you want to sniff? [Press X to exit]");
+    println!();
+    let tot_interfaces = print_devices();
+    println!();
+    let mut my_index = 0;
 
-    print_devices();
+    loop{
+        print!("> Select an index: ");
+        io::stdout().flush();
 
-    println!("Which interface you want to sniff?");
-    let mut my_index_str = String::new();
-    io::stdin().read_line(&mut my_index_str).expect("Error reading the index");
-    //TODO: controlla che index sia < di num interfacce
-    //TODO: gestire con ciclo invece che con expect
-    let my_index = my_index_str.trim().parse::<usize>().expect("Error: inserted an invalid number");
+        let mut my_index_str = String::new();
 
-    let dev_name = find_my_device_name(my_index);
-    println!("Ok, you selected:  {:?}", dev_name);
+        if io::stdin().read_line(&mut my_index_str).is_ok()
+        {
+            let cmd = my_index_str.trim();
+            if cmd=="X" || cmd=="x"
+            {
+                println!("Closing.....");
+                break;
+            }
 
-    let interface = select_device_by_name(dev_name);
-    println!("Setting the interface in promiscous mode... "); // The promiscous mode is the default configuration (line 167 file lib.rs in pnet-datalink module)
-
-    println!("Please, insert a time interval");
-    let mut time_interval_str = String::new();
-    io::stdin().read_line(&mut time_interval_str).expect("Error reading the index");
-    let time_interval = time_interval_str.trim().parse::<i32>().expect("Error: inserted an invalid number");
-
-
-    // select file name + check file name
-    println!("Please, insert a file name");
-    let mut filename = String::new();
-    io::stdin().read_line(&mut filename).expect("Error reading the index");
-    filename = filename.trim().to_string();
-
-    // select filtri + check filters
-    let mut filter = Filter::new();
-    let filters_enum = [FilterEnum::IsoOsiProtocol, FilterEnum::IpSorg, FilterEnum::IpDest, FilterEnum::PortSorg, FilterEnum::PortDest];
-    for filt in filters_enum{
-        //filter.populate(filt);
+            else if cmd.parse::<usize>().is_ok()
+            {
+                my_index = cmd.parse::<usize>().unwrap();
+                if my_index>=0 && my_index<tot_interfaces
+                {
+                    break;
+                }
+            }
+        }
+        println!("> Error: please select a valid number. Try Again.");
     }
 
 
-    let mut f = String::new();
-    f = "ciao".to_string();
+    let dev_name = find_my_device_name(my_index);
+    println!("> Ok, you selected:  {:?}", dev_name);
+    let interface = select_device_by_name(dev_name);
+    println!("> Setting the interface in promiscous mode... "); // The promiscous mode is the default configuration (line 167 file lib.rs in pnet-datalink module)
+    println!();
+    println!("> Please, insert a time interval. [Press X to exit]");
 
-    return (interface, time_interval, filename, f);
+    let mut time_interval = 0;
+
+    loop{
+        print!("> Time interval (s): ");
+        io::stdout().flush();
+
+        let mut time_interval_str = String::new();
+
+        if io::stdin().read_line(&mut time_interval_str).is_ok()
+        {
+            let cmd = time_interval_str.trim();
+            if cmd=="X" || cmd=="x"
+            {
+                println!("Closing.....");
+                break;
+            }
+
+            else if cmd.parse::<usize>().is_ok()
+            {
+                time_interval = cmd.parse::<usize>().unwrap();
+                if time_interval>0
+                {
+                    break;
+                }
+            }
+        }
+        println!("> Error: please select a valid number. Try Again.");
+    }
+
+    println!();
+    // select file name + check file name
+    println!("> Please, insert the name of the file where we will save the report. [Press X to exit] ");
+    let mut filename = String::new();
+
+    loop{
+        print!("> File Name (.txt file): ");
+        io::stdout().flush();
+
+        if io::stdin().read_line(&mut filename).is_ok()
+        {
+            let cmd = filename.trim();
+            if cmd=="X" || cmd=="x"
+            {
+                println!("Closing.....");
+                break;
+            }
+
+            else if cmd.ends_with(".txt")
+            {
+                filename = cmd.to_string();
+                break;
+            }
+        }
+        println!("> Error. Try Again.");
+    }
+
+    println!();
+
+    // select filtri + check filters
+    let mut filter_cmd= false;
+
+    println!("> Do you want to add a filter (Y/N)?  [Press X to Exit] ");
+    let mut filter = Filter::new();
+    let filters_enum = [FilterEnum::IpSorg,  FilterEnum::PortSorg, FilterEnum::IpDest, FilterEnum::PortDest, FilterEnum::IsoOsiProtocol];
+
+    loop {
+        print!("> Command: ");
+        io::stdout().flush();
+        let mut cmd = String::new();
+        if io::stdin().read_line(&mut cmd).is_ok()
+        {
+            match cmd.trim()
+            {
+                "X" | "x" => {
+                    println!("Closing.....");
+                    break;
+                },
+                "N" | "n" => {
+                    filter_cmd = false;
+                    break;
+                },
+                "Y" | "y" => {
+                    filter_cmd = true;
+                    break;
+                },
+
+                _ => { continue; }
+            }
+
+            println!("> Invalid Command. Try Again.");
+        }
+    }
+
+    if filter_cmd{
+        // Create a filter
+        println!("> Specify the filter fields. For each field insert the value or '_' to skip it.");
+        for field in filters_enum
+        {
+            filter.populate(field);
+        }
+    }
+
+    return (interface, time_interval, filename, filter);
 }
 /*
 *  PRINT on FiLE FUNCTIONS
@@ -446,7 +566,7 @@ pub enum Protocol{
     IcmpV4,
     IcmpV6,
     Dns,
-    Tls,
+    Tls
     None
 }
 
@@ -648,7 +768,8 @@ impl Filter {
         match filter_enum {
             FilterEnum::IpSorg => {
                 let mut ip = String::new();
-                println!("Please insert the source IP address or _");
+                print!("> [Source Ip Address]: ");
+                io::stdout().flush();
                 loop{
                     io::stdin().read_line(&mut ip).expect("Error reading the source IP address");
                     ip = ip.trim().to_string();
@@ -662,14 +783,15 @@ impl Filter {
                             self.ip_srg = Some(address);
                         }
                         Err(err) => {
-                            println!("Please, insert a correct IP address or _!");
+                            println!("> Please, insert a correct IP address or _!");
                         }
                     }
                 }
             }
             FilterEnum::IpDest => {
                 let mut ip = String::new();
-                println!("Please insert the destination IP address or _");
+                print!("> [Dest Ip Address]: ");
+                io::stdout().flush();
                 loop{
                     io::stdin().read_line(&mut ip).expect("Error reading the source IP address");
                     ip = ip.trim().to_string();
@@ -683,14 +805,15 @@ impl Filter {
                             self.ip_dest = Some(address);
                         }
                         Err(err) => {
-                            println!("Please, insert a correct port number!");
+                            println!("> Please, insert a correct port number!");
                         }
                     }
                 }
             }
             FilterEnum::PortSorg => {
                 let mut prt = String::new();
-                println!("Please insert the source port or _");
+                print!("> [Source Port]: ");
+                io::stdout().flush();
 
                 loop{
                     io::stdin().read_line(&mut prt).expect("Error reading the source port");
@@ -705,14 +828,15 @@ impl Filter {
                             self.prt_srg = Some(port);
                         }
                         Err(_) => {
-                            println!("Please, insert a correct port number!");
+                            println!(">Please, insert a correct port number!");
                         }
                     }
                 }
             }
             FilterEnum::PortDest => {
                 let mut prt = String::new();
-                println!("Please insert the destination port or _");
+                print!("> [Destination Port]:");
+                io::stdout().flush();
                 loop{
                     io::stdin().read_line(&mut prt).expect("Error reading the destination port");
                     prt = prt.trim().to_string();
@@ -733,7 +857,8 @@ impl Filter {
             }
             FilterEnum::IsoOsiProtocol => {
                 let mut prot = String::new();
-                println!("Please insert the chosen protocol or _");
+                print!("> [Protocol]: ");
+                io::stdout().flush();
                 loop{
                     io::stdin().read_line(&mut prot).expect("Error reading the source IP address");
                     prot = prot.trim().to_string();
@@ -747,7 +872,7 @@ impl Filter {
                             self.protocol = protocol;
                         }
                         Err(_) => {
-                            println!("Please, insert a correct protocol name!");
+                            println!("> Please, insert a correct protocol name!");
                         }
                     }
                 }
