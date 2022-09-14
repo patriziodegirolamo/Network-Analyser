@@ -62,7 +62,7 @@ fn find_my_device_name(index: usize) -> String {
 }
 
 
-fn init_sniffing() -> (NetworkInterface, i32, &'static str, &'static str)
+fn init_sniffing() -> (NetworkInterface, i32, String, String)
 {
     /* Define the interface to use */
 
@@ -81,18 +81,26 @@ fn init_sniffing() -> (NetworkInterface, i32, &'static str, &'static str)
     let interface = select_device_by_name(dev_name);
     println!("Setting the interface in promiscous mode... "); // The promiscous mode is the default configuration (line 167 file lib.rs in pnet-datalink module)
 
+    println!("Please, insert a time interval");
+    let mut time_interval_str = String::new();
+    io::stdin().read_line(&mut time_interval_str).expect("Error reading the index");
+    let time_interval = time_interval_str.trim().parse::<i32>().expect("Error: inserted an invalid number");
 
-    // select time interval + check time interval
-    let timeInterval = 3;
+
     // select file name + check file name
-    let fileName = "filename";
-    // select filtri + check filters
-    let filter = "filtro1 && filtro 2";
+    println!("Please, insert a file name");
+    let mut filename = String::new();
+    io::stdin().read_line(&mut filename).expect("Error reading the index");
+    filename = filename.trim().to_string();
 
-    return (interface, timeInterval, fileName, filter);
+    // select filtri + check filters
+    println!("Please, insert a filter in terms of: port");
+    let mut filter = String::new();
+    filter = "ciao".to_string();
+
+    return (interface, time_interval, filename, filter);
 
 }
-
 
 /*
 *  PRINT on FiLE FUNCTIONS
@@ -100,6 +108,7 @@ fn init_sniffing() -> (NetworkInterface, i32, &'static str, &'static str)
 */
 
 use std::fs::{File};
+use std::ops::Deref;
 
 fn open_file(filename: String) -> io::Result<File> {
     return File::options().write(true).truncate(true).create(true).open(filename);
@@ -560,7 +569,7 @@ impl ConversationKey {
         -> Self{
         return ConversationKey{
             ip_srg, ip_dest, prt_srg, prt_dest,
-            protocol: protocol
+            protocol
         }
     }
 }
@@ -574,7 +583,7 @@ fn main() {
     *
     */
 
-    let (interface, timeInterval, fileName, filter) = init_sniffing();
+    let (interface, time_interval, filename, filter) = init_sniffing();
 
     // Create a channel to receive on
     let (_, mut rx) = match datalink::channel(&interface, pnet_datalink::Config::default()) {
@@ -677,9 +686,7 @@ fn main() {
     *
     */
 
-    let mut file = open_file("report.txt".to_string()).expect("ERRORE FILE");
+    let mut file = open_file(filename).expect("ERRORE FILE");
     write_summaries(&mut file, convs_summaries);
-
-
 
 }
