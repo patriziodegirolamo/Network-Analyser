@@ -62,7 +62,7 @@ fn find_my_device_name(index: usize) -> String {
 }
 
 
-fn init_sniffing() -> (NetworkInterface, i32, String, String)
+fn init_sniffing() -> (NetworkInterface, i32, String, Filter)
 {
     /* Define the interface to use */
 
@@ -95,16 +95,12 @@ fn init_sniffing() -> (NetworkInterface, i32, String, String)
 
     // select filtri + check filters
     let mut filter = Filter::new();
-    let filters_enum = [FilterEnum::IsoOsiProtocol, FilterEnum::IpSorg, FilterEnum::IpDest, FilterEnum::PortSorg, FilterEnum::PortDest];
-    for filt in filters_enum{
-        //filter.populate(filt);
-    }
+    filter.protocol = Protocol::Tls;
+    //filter.ip_srg = Some(IpAddr::V4(Ipv4Addr::new(192,168,1,106)));
+    //filter.prt_dest = Some(443);
+    //filter.prt_srg = Some(64452);
 
-
-    let mut f = String::new();
-    f = "ciao".to_string();
-
-    return (interface, time_interval, filename, f);
+    return (interface, time_interval, filename, filter);
 }
 /*
 *  PRINT on FiLE FUNCTIONS
@@ -163,168 +159,269 @@ fn write_summaries(file: &mut File, convs_summaries: HashMap<ConversationKey, Co
 *
 */
 
-fn handle_dns_packet(packet: &[u8], new_packet_info: &mut PacketInfo){
+fn handle_dns_packet(packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter){
 
     if dns_parser::Packet::parse(packet).is_ok() {
         PacketInfo::set_protocol(new_packet_info, Protocol::Dns);
+
+        match filter.protocol {
+            Protocol::Dns => {}
+            Protocol::None => {}
+            _ => {new_packet_info.set_filtered()}
+        }
+
+        if !new_packet_info.filtered{
+            println!(
+                "DNS Packet: {}:{} > {}:{}",
+                new_packet_info.ip_sorg.unwrap(),
+                new_packet_info.prt_sorg,
+                new_packet_info.ip_dest.unwrap(),
+                new_packet_info.prt_dest,
+            );
+        }
+
     }
 }
 
-fn handle_tls_packet(packet: &[u8], new_packet_info: &mut PacketInfo) {
+fn handle_tls_packet(packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) {
 
     if tls_parser::parse_tls_plaintext(packet).is_ok() || tls_parser::parse_tls_encrypted(packet).is_ok() {
         PacketInfo::set_protocol(new_packet_info, Protocol::Tls);
+
+        match filter.protocol {
+            Protocol::Tls => {}
+            Protocol::None => {}
+            _ => {new_packet_info.set_filtered()}
+        }
+
+        if !new_packet_info.filtered{
+            println!(
+                "TLS Packet: {}:{} > {}:{}",
+                new_packet_info.ip_sorg.unwrap(),
+                new_packet_info.prt_sorg,
+                new_packet_info.ip_dest.unwrap(),
+                new_packet_info.prt_dest,
+            );
+        }
+
     }
 }
 
-fn handle_udp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_packet_info: &mut PacketInfo) {
+fn handle_udp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) {
     let udp = UdpPacket::new(packet);
 
     if let Some(udp) = udp {
         // Extract the source and destination port
         let prt_srg = udp.get_source();
         let prt_dest = udp.get_destination();
+
         // Save them in the PacketInfo structure
+        if filter.prt_srg != None && filter.prt_srg.unwrap() != prt_srg{
+            new_packet_info.set_filtered();
+        }
+        if filter.prt_dest != None && filter.prt_dest.unwrap() != prt_dest{
+            new_packet_info.set_filtered();
+        }
+
         PacketInfo::set_porta_sorgente(new_packet_info,prt_srg);
         PacketInfo::set_porta_destinazione(new_packet_info, prt_dest);
         PacketInfo::set_protocol(new_packet_info,Protocol::Udp);
         if prt_srg == 53 || prt_dest == 53{
-            handle_dns_packet(udp.payload(), new_packet_info);
+            handle_dns_packet(udp.payload(), new_packet_info, filter);
         }
 
-        println!(
-            "UDP Packet: {}:{} > {}:{}; length: {}",
-            source,
-            prt_srg,
-            destination,
-            prt_dest,
-            udp.get_length()
-        );
+        if !new_packet_info.filtered && filter.protocol == Protocol::Udp{
+            println!(
+                "UDP Packet: {}:{} > {}:{}; length: {}",
+                source,
+                prt_srg,
+                destination,
+                prt_dest,
+                udp.get_length()
+            );
+        }
+
     } else {
         println!("Malformed UDP Packet");
     }
 }
 
-fn handle_icmp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_packet_info: &mut PacketInfo) {
+fn handle_icmp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) {
     let icmp_packet = IcmpPacket::new(packet);
 
     if let Some(icmp_packet) = icmp_packet {
         // Save the protocol type in the PacketInfo structure
         PacketInfo::set_protocol(new_packet_info,Protocol::IcmpV4);
         // TODO: tipo di icmp???
-        match icmp_packet.get_icmp_type() {
-            IcmpTypes::EchoReply => {
-                let echo_reply_packet = echo_reply::EchoReplyPacket::new(packet).unwrap();
-                println!(
-                    "ICMP echo reply {} -> {} (seq={:?}, id={:?})",
-                    source,
-                    destination,
-                    echo_reply_packet.get_sequence_number(),
-                    echo_reply_packet.get_identifier()
-                );
-            }
-            IcmpTypes::EchoRequest => {
-                let echo_request_packet = echo_request::EchoRequestPacket::new(packet).unwrap();
-                println!(
-                    "ICMP echo request {} -> {} (seq={:?}, id={:?})",
-                    source,
-                    destination,
-                    echo_request_packet.get_sequence_number(),
-                    echo_request_packet.get_identifier()
-                );
-            }
-            _ => println!(
-                "ICMP packet {} -> {} (type={:?})",
-                source,
-                destination,
-                icmp_packet.get_icmp_type()
-            ),
+        if new_packet_info.filtered{
+            //println!("***** pacchetto ICMP filtrato******");
         }
+        else{
+            match icmp_packet.get_icmp_type() {
+                IcmpTypes::EchoReply => {
+                    let echo_reply_packet = echo_reply::EchoReplyPacket::new(packet).unwrap();
+                    println!(
+                        "ICMP echo reply {} -> {} (seq={:?}, id={:?})",
+                        source,
+                        destination,
+                        echo_reply_packet.get_sequence_number(),
+                        echo_reply_packet.get_identifier()
+                    );
+                }
+                IcmpTypes::EchoRequest => {
+                    let echo_request_packet = echo_request::EchoRequestPacket::new(packet).unwrap();
+                    println!(
+                        "ICMP echo request {} -> {} (seq={:?}, id={:?})",
+                        source,
+                        destination,
+                        echo_request_packet.get_sequence_number(),
+                        echo_request_packet.get_identifier()
+                    );
+                }
+                _ => println!(
+                    "ICMP packet {} -> {} (type={:?})",
+                    source,
+                    destination,
+                    icmp_packet.get_icmp_type()
+                ),
+            }
+        }
+
 
     } else {
         println!("Malformed ICMP Packet");
     }
 }
 
-fn handle_icmpv6_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_packet_info: &mut PacketInfo) {
+fn handle_icmpv6_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) {
     let icmpv6_packet = Icmpv6Packet::new(packet);
 
     if let Some(icmpv6_packet) = icmpv6_packet {
         // Save the protocol type in the PacketInfo structure
         PacketInfo::set_protocol(new_packet_info,Protocol::IcmpV6);
-        println!(
-            "ICMPv6 packet {} -> {} (type={:?})",
-            source,
-            destination,
-            icmpv6_packet.get_icmpv6_type()
-        )
+        if new_packet_info.filtered{
+            //println!("******pacchetto ICMP v6 filtratp******")
+        }
+        else{
+            println!(
+                "ICMPv6 packet {} -> {} (type={:?})",
+                source,
+                destination,
+                icmpv6_packet.get_icmpv6_type()
+            )
+        }
+
     } else {
         println!("Malformed ICMPv6 Packet");
     }
 }
 
-fn handle_tcp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_packet_info: &mut PacketInfo) {
+fn handle_tcp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) {
     let tcp = TcpPacket::new(packet);
     if let Some(tcp) = tcp {
         // Extract the source and destination ports
         let prt_srg = tcp.get_source();
         let prt_dest = tcp.get_destination();
+
+        if filter.prt_srg != None && filter.prt_srg.unwrap() != prt_srg{
+            new_packet_info.set_filtered();
+        }
+        if filter.prt_dest != None && filter.prt_dest.unwrap() != prt_dest{
+            new_packet_info.set_filtered();
+        }
         // Save them in the PacketInfo structure
         PacketInfo::set_porta_sorgente(new_packet_info,prt_srg);
         PacketInfo::set_porta_destinazione(new_packet_info, prt_dest);
         PacketInfo::set_protocol(new_packet_info,Protocol::Tcp);
         // Check if the protocol carried is TLS
-        handle_tls_packet(tcp.payload(), new_packet_info);
+        handle_tls_packet(tcp.payload(), new_packet_info, filter);
 
-        println!(
-            "TCP Packet: {}:{} > {}:{}; length: {}",
-            source,
-            prt_srg,
-            destination,
-            prt_dest,
-            packet.len()
-        );
+        if prt_srg == 53 || prt_dest == 53{
+            handle_dns_packet(tcp.payload(), new_packet_info, filter);
+        }
+        if !new_packet_info.filtered && filter.protocol == Protocol::Tcp{
+            println!(
+                "TCP Packet: {}:{} > {}:{}; length: {}",
+                source,
+                prt_srg,
+                destination,
+                prt_dest,
+                packet.len()
+            );
+        }
+
     } else {
         println!("Malformed TCP Packet");
     }
 }
 
-fn handle_transport_protocol(source: IpAddr, destination: IpAddr, protocol: IpNextHeaderProtocol, packet: &[u8], new_packet_info: &mut PacketInfo) {
+fn handle_transport_protocol(source: IpAddr, destination: IpAddr, protocol: IpNextHeaderProtocol, packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) {
     match protocol {
         IpNextHeaderProtocols::Udp => {
-            handle_udp_packet(source, destination, packet, new_packet_info)
+            match filter.protocol {
+                Protocol::Udp => {}
+                Protocol::Dns => {}
+                Protocol::None => {}
+                _ => {new_packet_info.set_filtered();}
+            }
+
+            handle_udp_packet(source, destination, packet, new_packet_info, filter)
         }
         IpNextHeaderProtocols::Tcp => {
-            handle_tcp_packet( source, destination, packet, new_packet_info)
+            match filter.protocol {
+                Protocol::Tls => {}
+                Protocol::Tcp => {}
+                Protocol::Dns => {}
+                Protocol::None => {}
+                _ => {new_packet_info.set_filtered();}
+            }
+            handle_tcp_packet(source, destination, packet, new_packet_info, filter)
         }
         IpNextHeaderProtocols::Icmp => {
-            handle_icmp_packet(source, destination, packet, new_packet_info)
+            if filter.protocol!=Protocol::None && filter.protocol != Protocol::IcmpV4{
+                new_packet_info.set_filtered();
+            }
+            handle_icmp_packet(source, destination, packet, new_packet_info, filter)
         }
         IpNextHeaderProtocols::Icmpv6 => {
-            handle_icmpv6_packet(source, destination, packet, new_packet_info)
+            if filter.protocol!=Protocol::None && filter.protocol != Protocol::IcmpV6{
+                new_packet_info.set_filtered();
+            }
+            handle_icmpv6_packet(source, destination, packet, new_packet_info, filter)
         }
-        _ => println!(
-            "Unknown {} packet: {} > {}; protocol: {:?} length: {}",
-            match source {
-                IpAddr::V4(..) => "IPv4",
-                _ => "IPv6",
-            },
-            source,
-            destination,
-            protocol,
-            packet.len()
-        ),
+        _ => {
+            if filter.protocol == Protocol::None {
+                println!(
+                    "Unknown {} packet: {} > {}; protocol: {:?} length: {}",
+                    match source {
+                        IpAddr::V4(..) => "IPv4",
+                        _ => "IPv6",
+                    },
+                    source,
+                    destination,
+                    protocol,
+                    packet.len()
+                )
+            }
+        },
     }
 }
 
-fn handle_ipv4_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInfo) {
+fn handle_ipv4_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInfo, filter: &Filter) {
     let header = Ipv4Packet::new(ethernet.payload());
 
     if let Some(header) = header {
         // Extract the source and destination ip address
         let ip_sorg = IpAddr::V4(header.get_source());
         let ip_dest = IpAddr::V4(header.get_destination());
-        // Save them in the Packet Info structure
+
+        // Save them in the Packet Info structur
+        if filter.ip_srg != None && filter.ip_srg.unwrap().is_ipv4() && filter.ip_srg.unwrap() != ip_sorg{
+            new_packet_info.set_filtered();
+        }
+        if filter.ip_dest != None && filter.ip_dest.unwrap().is_ipv4() && filter.ip_dest.unwrap() != ip_dest{
+            new_packet_info.set_filtered();
+        }
         PacketInfo::set_ip_sorgente(new_packet_info, ip_sorg);
         PacketInfo::set_ip_destinazione(new_packet_info, ip_dest);
         handle_transport_protocol(
@@ -332,20 +429,29 @@ fn handle_ipv4_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInf
             ip_dest,
             header.get_next_level_protocol(),
             header.payload(),
-            new_packet_info
+            new_packet_info,
+            filter
         );
     } else {
         println!("Malformed IPv4 Packet");
     }
 }
 
-fn handle_ipv6_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInfo) {
+fn handle_ipv6_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInfo, filter: &Filter) {
     let header = Ipv6Packet::new(ethernet.payload());
 
     if let Some(header) = header {
         // Extract the source and destination ip address
         let ip_sorg = IpAddr::V6(header.get_source());
         let ip_dest = IpAddr::V6(header.get_destination());
+
+        // Save them in the Packet Info structur
+        if filter.ip_srg != None && filter.ip_srg.unwrap().is_ipv6() && filter.ip_srg.unwrap() == ip_sorg{
+            new_packet_info.set_filtered();
+        }
+        if filter.ip_dest != None && filter.ip_dest.unwrap().is_ipv6() && filter.ip_dest.unwrap() == ip_dest{
+            new_packet_info.set_filtered();
+        }
         // Save them in the Packet Info structure
         PacketInfo::set_ip_sorgente(new_packet_info, ip_sorg);
         PacketInfo::set_ip_destinazione(new_packet_info, ip_dest);
@@ -354,48 +460,61 @@ fn handle_ipv6_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInf
             ip_dest,
             header.get_next_header(),
             header.payload(),
-            new_packet_info
+            new_packet_info,
+            filter
         );
     } else {
         println!("Malformed IPv6 Packet");
     }
 }
 
-fn handle_arp_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInfo) {
+fn handle_arp_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInfo, filter: &Filter) {
     let header = ArpPacket::new(ethernet.payload());
 
+    if filter.protocol!=Protocol::None && filter.protocol != Protocol::Arp{
+        new_packet_info.set_filtered();
+    }
+    if filter.ip_dest.is_none() && filter.ip_srg.is_none(){
+        new_packet_info.set_filtered();
+    }
     if let Some(header) = header {
         PacketInfo::set_ip_sorgente(new_packet_info, IpAddr::V4( header.get_sender_proto_addr()));
         PacketInfo::set_ip_destinazione(new_packet_info, IpAddr::V4(header.get_target_proto_addr()));
         PacketInfo::set_protocol(new_packet_info, Protocol::Arp);
 
-        println!(
-            "ARP packet: {}({}) > {}({}); operation: {:?}",
-            ethernet.get_source(),
-            header.get_sender_proto_addr(),
-            ethernet.get_destination(),
-            header.get_target_proto_addr(),
-            header.get_operation(),
-        );
+        if !new_packet_info.filtered {
+            println!(
+                "ARP packet: {}({}) > {}({}); operation: {:?}",
+                ethernet.get_source(),
+                header.get_sender_proto_addr(),
+                ethernet.get_destination(),
+                header.get_target_proto_addr(),
+                header.get_operation(),
+            );
+        }
     } else {
         println!("Malformed ARP Packet");
     }
 }
 
-fn handle_ethernet_frame(ethernet: &EthernetPacket, new_packet_info: &mut PacketInfo) {
+fn handle_ethernet_frame(ethernet: &EthernetPacket, new_packet_info: &mut PacketInfo, filter:&Filter) {
     PacketInfo::set_dim(new_packet_info, ethernet.packet().len());
     new_packet_info.dim = ethernet.packet().len();
     match ethernet.get_ethertype() {
-        EtherTypes::Ipv4 => handle_ipv4_packet(ethernet, new_packet_info),
-        EtherTypes::Ipv6 => handle_ipv6_packet(ethernet, new_packet_info),
-        EtherTypes::Arp => handle_arp_packet(ethernet, new_packet_info),
-        _ => println!(
-            "Unknown packet: {} > {}; ethertype: {:?} length: {}",
-            ethernet.get_source(),
-            ethernet.get_destination(),
-            ethernet.get_ethertype(),
-            ethernet.packet().len()
-        ),
+        EtherTypes::Ipv4 => handle_ipv4_packet(ethernet, new_packet_info, filter),
+        EtherTypes::Ipv6 => handle_ipv6_packet(ethernet, new_packet_info, filter),
+        EtherTypes::Arp => handle_arp_packet(ethernet, new_packet_info, filter),
+        _ => {
+            if filter.protocol == Protocol::None{
+                println!(
+                    "Unknown packet: {} > {}; ethertype: {:?} length: {}",
+                    ethernet.get_source(),
+                    ethernet.get_destination(),
+                    ethernet.get_ethertype(),
+                    ethernet.packet().len()
+                )
+            }
+        },
     }
 }
 
@@ -498,7 +617,8 @@ struct PacketInfo{
     prt_dest: u16,
     protocol: Protocol,
     dim: usize, //TODO: ok dimensione?
-    arrival_time: Option<Duration>
+    arrival_time: Option<Duration>,
+    filtered: bool
 }
 
 impl PacketInfo {
@@ -510,7 +630,8 @@ impl PacketInfo {
             prt_dest: 0,
             protocol: Protocol::None,
             dim: 0,
-            arrival_time: None
+            arrival_time: None,
+            filtered: false
         }
     }
 
@@ -540,6 +661,10 @@ impl PacketInfo {
 
     pub fn set_protocol(&mut self, protocol: Protocol){
         self.protocol = protocol
+    }
+
+    pub fn set_filtered(&mut self){
+        self.filtered = true;
     }
 
 }
@@ -824,7 +949,7 @@ fn main() {
                             new_ethernet_frame.set_source(MacAddr(0, 0, 0, 0, 0, 0));
                             new_ethernet_frame.set_ethertype(EtherTypes::Ipv4);
                             new_ethernet_frame.set_payload(&packet[payload_offset..]);
-                            handle_ethernet_frame(&new_ethernet_frame.to_immutable(), &mut new_packet_info);
+                            handle_ethernet_frame(&new_ethernet_frame.to_immutable(), &mut new_packet_info, &filter);
                             continue;
                         } else if version == 6 {
                             println!("CASO PARTICOLARE 2");
@@ -832,33 +957,36 @@ fn main() {
                             new_ethernet_frame.set_source(MacAddr(0, 0, 0, 0, 0, 0));
                             new_ethernet_frame.set_ethertype(EtherTypes::Ipv6);
                             new_ethernet_frame.set_payload(&packet[payload_offset..]);
-                            handle_ethernet_frame(&new_ethernet_frame.to_immutable(), &mut new_packet_info);
+                            handle_ethernet_frame(&new_ethernet_frame.to_immutable(), &mut new_packet_info, &filter);
                             continue;
                         }
                     }
                 }
 
                 // Parse the ethernet frame
-                handle_ethernet_frame(&EthernetPacket::new(packet).unwrap(), &mut new_packet_info);
+                handle_ethernet_frame(&EthernetPacket::new(packet).unwrap(), &mut new_packet_info, &filter);
 
-                // Create the key of the packet considering (ip_sorg, ip_dest, port_sorg, port_dest, prot)
-                let key = ConversationKey::new_key(new_packet_info.ip_sorg.unwrap(),
-                                                                new_packet_info.ip_dest.unwrap(),
-                                                                new_packet_info.prt_sorg,
-                                                                       new_packet_info.prt_dest,
-                                                              new_packet_info.protocol);
-                // If the packet belongs to a conversation already present in the map, update the stats, otherwise add a new record
-                convs_summaries.entry(key)
-                                .and_modify(|entry| {
-                                                                        entry.tot_bytes += new_packet_info.dim;
-                                                                        entry.ending_time = new_packet_info.arrival_time;})
-                                .or_insert(ConversationStats::with_details(new_packet_info.dim,
-                                                                           new_packet_info.arrival_time.unwrap(),
-                                                                           new_packet_info.arrival_time.unwrap()));
+                if !new_packet_info.filtered{
+                    // Create the key of the packet considering (ip_sorg, ip_dest, port_sorg, port_dest, prot)
+                    let key = ConversationKey::new_key(new_packet_info.ip_sorg.unwrap(),
+                                                       new_packet_info.ip_dest.unwrap(),
+                                                       new_packet_info.prt_sorg,
+                                                       new_packet_info.prt_dest,
+                                                       new_packet_info.protocol);
+                    // If the packet belongs to a conversation already present in the map, update the stats, otherwise add a new record
+                    convs_summaries.entry(key)
+                        .and_modify(|entry| {
+                            entry.tot_bytes += new_packet_info.dim;
+                            entry.ending_time = new_packet_info.arrival_time;})
+                        .or_insert(ConversationStats::with_details(new_packet_info.dim,
+                                                                   new_packet_info.arrival_time.unwrap(),
+                                                                   new_packet_info.arrival_time.unwrap()));
+                }
+
             }
             Err(e) => panic!("packetdump: unable to receive packet: {}", e),
         }
-        if i == 100{
+        if i == 500{
             break;
         }
         i+=1;
