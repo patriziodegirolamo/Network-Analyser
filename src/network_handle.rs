@@ -1,5 +1,6 @@
 extern crate pnet;
 
+use std::error::Error;
 use pnet_datalink::{self as datalink, NetworkInterface};
 use std::io::{self, Write};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
@@ -7,6 +8,8 @@ use pnet::util::MacAddr;
 use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
 use pnet::packet::ipv4::Ipv4Packet;
 use enum_iterator::{all};
+use std::thread;
+use std::time::Duration;
 use crate::{packet_handle, PacketInfo};
 use crate::packet_handle::{Filter, FilteredProtocol, Protocol};
 
@@ -240,13 +243,10 @@ pub fn init_sniffing() -> (NetworkInterface, usize, String, Filter) {
                         else{
                             let file_name_vec :Vec<&str> = cmd.split(".").map(|x| x).collect();
                             match file_name_vec.len() {
-                                0 => {
-                                    println!("Error, something was wrong!");
-                                }
-                                1 => {
-                                    //ci aggiungo il txt
-                                    filename = cmd.to_owned() + ".txt";
-                                }
+                                0 => println!("Error, something was wrong!"),
+
+                                1 => filename = cmd.to_owned() + ".txt",     //ci aggiungo il txt
+
                                 2 => {
                                     //se l'estensione non va bene ci metto txt
                                     if file_name_vec.last().unwrap().to_string() != ".txt".to_string(){
@@ -269,230 +269,161 @@ pub fn init_sniffing() -> (NetworkInterface, usize, String, Filter) {
                 }
             }
             State::Filter => {
-                println!("do you want to add a filter? [Y, N]");
+                println!("> do you want to add a filter? [Y, N]");
                 io::stdout().flush().expect("Error");
 
                 let mut filt = String::new();
-                if io::stdin().read_line(&mut filt).is_ok() {
-                    let cmd = filt.trim();
-                    if cmd == "Y" || cmd == "y" {
-                        state = State::IpSorg;
-                        continue;
+                match io::stdin().read_line(&mut filt){
+                    Ok(_) => {
+                        let cmd = filt.trim();
+                        match cmd {
+                            "Y" | "y" => state = State::IpSorg,
+                            "" | "N" | "n" => state = State::Running,
+                            "E" | "e" => state = State::Index,
+                            _ => println!("> Please, write a correct answer"),
+                        }
                     }
-                    if cmd == "N" || cmd == "n" {
-                        state = State::Running;
-                        continue;
-                    }
-                    else {
-                        continue;
-                    }
+                    Err(err) => println!("Error: {}", err)
                 }
             }
             State::IpSorg => {
-                println!("please insert the source ip address or X otherwise");
+                println!("> Please insert the source ip address or [X, or nothing] otherwise");
                 let mut ip_str = String::new();
-                if io::stdin().read_line(&mut ip_str).is_ok() {
-                    ip_str = ip_str.trim().to_string();
 
-                    if ip_str == "X" || ip_str == "x"{
-                        state = State::IpDest;
-                        continue;
-                    }
+                match io::stdin().read_line(&mut ip_str) {
+                    Ok(_) => {
+                        ip_str = ip_str.trim().to_string();
 
-                    let vec_ip4 : Vec<&str> = ip_str.split(".").map(|x| x).collect();
-                    let vec_ip6 : Vec<&str> = ip_str.split(":").map(|x| x).collect();
-
-                    if vec_ip4.len() == 4 {
-                        let mut correct = true;
-                        let mut tmp : Vec<u8> = vec![0; 4];
-                        for i in 0..4{
-                            match vec_ip4[i].parse::<u8>() {
-                                Ok(val) => {
-                                    tmp[i] = val;
-                                }
-                                Err(e) => {
-                                    correct = false;
-                                    println!("ERROR {}", e);
-                                }
-                            }
-                        }
-                        if correct {
-                            filter.set_ip_srg(IpAddr::V4(Ipv4Addr::new(tmp[0], tmp[1], tmp[2], tmp[3])));
-                            println!("{:?}", filter);
+                        if ip_str == "" || ip_str == "X" || ip_str == "x"{
                             state = State::IpDest;
                             continue;
                         }
-                    }
-                    if vec_ip6.len() == 8 {
-                        let mut correct = true;
-                        let mut tmp : Vec<u16> = vec![0; 8];
-                        for i in 0..8{
-                            match vec_ip6[i].parse::<u16>(){
-                                Ok(val) => {
-                                    tmp[i] = val;
-                                }
-                                Err(e) => {
-                                    correct = false;
-                                    println!("ERROR {}", e);
-                                }
+
+                        match validate_ip_address(ip_str) {
+                            Ok(addr) => {
+                                filter.set_ip_srg(addr);
+                                state = State::IpDest;
                             }
-                        }
-                        if correct {
-                            filter.set_ip_srg(IpAddr::V6(Ipv6Addr::new(tmp[0], tmp[1], tmp[2], tmp[3],
-                                                                       tmp[4], tmp[5], tmp[6], tmp[7])));
-                            state = State::IpDest;
-                            println!("{:?}", filter);
-                            continue;
+                            Err(err) => println!("Error: {}", err)
                         }
                     }
-                    println!("the ip address is not correct!");
+                    Err(err) => println!("Error: {}", err)
                 }
             }
             State::IpDest => {
-                println!("please insert the destination ip address or X otherwise");
+                println!("> Please insert the destination ip address or [X, or nothing] otherwise");
                 let mut ip_str = String::new();
-                if io::stdin().read_line(&mut ip_str).is_ok() {
 
-                    ip_str = ip_str.trim().to_string();
+                match io::stdin().read_line(&mut ip_str) {
+                    Ok(_) => {
+                        ip_str = ip_str.trim().to_string();
 
-                    if ip_str == "X" || ip_str == "x"{
-                        state = State::PortaSorg;
-                        continue;
-                    }
-                    let vec_ip4 : Vec<&str> = ip_str.split(".").map(|x| x).collect();
-                    let vec_ip6 : Vec<&str> = ip_str.split(":").map(|x| x).collect();
-
-                    if vec_ip4.len() == 4 {
-                        let mut correct = true;
-                        let mut tmp : Vec<u8> = vec![0; 4];
-                        for i in 0..4{
-                            match vec_ip4[i].parse::<u8>() {
-                                Ok(val) => {
-                                    tmp[i] = val;
-                                }
-                                Err(e) => {
-                                    correct = false;
-                                    println!("ERROR {}", e);
-                                }
-                            }
-                        }
-                        if correct {
-                            filter.set_ip_dest(IpAddr::V4(Ipv4Addr::new(tmp[0], tmp[1], tmp[2], tmp[3])));
-                            println!("{:?}", filter);
+                        if ip_str == "" || ip_str == "X" || ip_str == "x"{
                             state = State::PortaSorg;
                             continue;
                         }
-                    }
-                    if vec_ip6.len() == 8 {
-                        let mut correct = true;
-                        let mut tmp : Vec<u16> = vec![0; 8];
-                        for i in 0..8{
-                            match vec_ip6[i].parse::<u16>(){
-                                Ok(val) => {
-                                    tmp[i] = val;
-                                }
-                                Err(e) => {
-                                    correct = false;
-                                    println!("ERROR {}", e);
-                                }
-                            }
-                        }
-                        if correct {
-                            filter.set_ip_dest(IpAddr::V6(Ipv6Addr::new(tmp[0], tmp[1], tmp[2], tmp[3],
-                                                                       tmp[4], tmp[5], tmp[6], tmp[7])));
-                            state = State::PortaSorg;
-                            println!("{:?}", filter);
-                            continue;
-                        }
-                    }
 
-                    println!("the ip address is not correct!");
+                        match validate_ip_address(ip_str) {
+                            Ok(addr) => {
+                                filter.set_ip_dest(addr);
+                                state = State::PortaSorg;
+                            }
+                            Err(err) => println!("Error: {}", err)
+                        }
+                    }
+                    Err(err) => println!("Error: {}", err)
                 }
-
-
             }
             State::PortaSorg => {
-                println!("please insert the source port number or X otherwise");
+                println!("> Please insert the source port number or X otherwise");
                 let mut prt_str = String::new();
-                if io::stdin().read_line(&mut prt_str).is_ok() {
-                    prt_str = prt_str.trim().to_string();
+                match io::stdin().read_line(&mut prt_str) {
+                    Ok(_) => {
+                        prt_str = prt_str.trim().to_string();
 
-                    if prt_str == "X" || prt_str == "x"{
-                        state = State::PortaDest;
-                        continue;
-                    }
-
-                    match prt_str.trim().parse::<u16>(){
-                        Ok(val) => {
-                            filter.set_prt_srg(val);
+                        if prt_str == ""|| prt_str == "X" || prt_str == "x"{
                             state = State::PortaDest;
+                            continue;
                         }
-                        Err(e) => {
-                            println!("ERror : {}", e);
+
+                        match prt_str.trim().parse::<u16>(){
+                            Ok(val) => {
+                                filter.set_prt_srg(val);
+                                state = State::PortaDest;
+                            }
+                            Err(err) => {
+                                println!("Error : {}", err);
+                            }
                         }
                     }
+                    Err(err) => println!("Error: {}", err)
                 }
             }
             State::PortaDest => {
-                println!("please insert the destination port number or X otherwise");
+                println!("> Please insert the destination port number or X otherwise");
                 let mut prt_str = String::new();
-                if io::stdin().read_line(&mut prt_str).is_ok() {
-                    prt_str = prt_str.trim().to_string();
+                match io::stdin().read_line(&mut prt_str) {
+                    Ok(_) => {
+                        prt_str = prt_str.trim().to_string();
 
-                    if prt_str == "X" || prt_str == "x"{
-                        state = State::Protocol;
-                        continue;
-                    }
-
-                    match prt_str.trim().parse::<u16>(){
-                        Ok(val) => {
-                            filter.set_prt_dest(val);
+                        if prt_str == "" || prt_str == "X" || prt_str == "x"{
                             state = State::Protocol;
+                            continue;
                         }
-                        Err(e) => {
-                            println!("ERror : {}", e);
+                        match prt_str.trim().parse::<u16>(){
+                            Ok(val) => {
+                                filter.set_prt_dest(val);
+                                state = State::Protocol;
+                            }
+                            Err(err) => {
+                                println!("Error : {}", err);
+                            }
                         }
                     }
+                    Err(err) => println!("Error: {}", err)
                 }
             }
             State::Protocol => {
-                println!("scegli tra uno dei seguenti protocolli o X");
+                println!("> Please, choose one of the following protocols or [X or nothing] otherwise");
                 let protocols :Vec<FilteredProtocol>= all::<FilteredProtocol>().collect::<Vec<_>>();
                 for (ind, tmp) in protocols.iter().enumerate(){
                     println!("{}: {}", ind, tmp);
                 }
                 let mut cmd = String::new();
-                if io::stdin().read_line(&mut cmd).is_ok() {
-                    cmd = cmd.trim().to_string();
 
-                    if cmd == "X" || cmd == "x" {
-                        state = State::Running;
-                        continue;
-                    }
+                match io::stdin().read_line(&mut cmd) {
+                    Ok(_) => {
+                        cmd = cmd.trim().to_string();
 
-                    match cmd.parse::<usize>(){
-                        Ok(val) => {
-                            if val < protocols.len(){
-                                println!("protocollo = {}", protocols[val]);
-                                let protocol = protocols[val].to_string().parse::<Protocol>();
-                                match protocol{
-                                    Ok(p) => {
-                                        filter.set_protocol(p);
-                                        state = State::Running;
-                                        println!("Filtro: {:?}", filter);
-                                    }
-                                    Err(err) => {
-                                        println!("Error: {:?}", err)
+                        if cmd == "" || cmd == "X" || cmd == "x" {
+                            state = State::Running;
+                            continue;
+                        }
+
+                        match cmd.parse::<usize>(){
+                            Ok(val) => {
+                                if val < protocols.len(){
+                                    let protocol = protocols[val].to_string().parse::<Protocol>();
+                                    match protocol{
+                                        Ok(p) => {
+                                            filter.set_protocol(p);
+                                            state = State::Running;
+                                        }
+                                        Err(err) => {
+                                            println!("Error: {:?}", err)
+                                        }
                                     }
                                 }
+                                else{
+                                    println!("Error, wrong number");
+                                }
                             }
-                            else{
-                                println!("Error, wrong number");
-                            }
+                            Err(err) => println!("Error: {}", err)
                         }
-                        Err(err) => println!("Error: {}", err)
                     }
+                    Err(err) => println!("Error: {}", err)
                 }
+
             }
             State::Running => {
                 break;
@@ -547,4 +478,48 @@ pub fn handle_particular_interfaces(interface: &NetworkInterface, packet: &[u8],
         }
     }
     return false;
+}
+
+pub fn validate_ip_address(ip_str: String) -> Result<IpAddr, String>{
+    let vec_ip4 : Vec<&str> = ip_str.split(".").map(|x| x).collect();
+    let vec_ip6 : Vec<&str> = ip_str.split(":").map(|x| x).collect();
+    let mut error = String::new();
+    if vec_ip4.len() == 4 {
+        let mut correct = true;
+        let mut tmp : Vec<u8> = vec![0; 4];
+        for i in 0..4{
+            match vec_ip4[i].parse::<u8>() {
+                Ok(val) => {
+                    tmp[i] = val;
+                }
+                Err(e) => {
+                    correct = false;
+                    error = e.to_string();
+                }
+            }
+        }
+        if correct {
+            return Ok(IpAddr::V4(Ipv4Addr::new(tmp[0], tmp[1], tmp[2], tmp[3])));
+        }
+    }
+    else if vec_ip6.len() == 8 {
+        let mut correct = true;
+        let mut tmp : Vec<u16> = vec![0; 8];
+        for i in 0..8{
+            match vec_ip6[i].parse::<u16>(){
+                Ok(val) => {
+                    tmp[i] = val;
+                }
+                Err(e) => {
+                    correct = false;
+                    error = e.to_string();
+                }
+            }
+        }
+        if correct {
+            return Ok(IpAddr::V6(Ipv6Addr::new(tmp[0], tmp[1], tmp[2], tmp[3],
+                                                       tmp[4], tmp[5], tmp[6], tmp[7])));
+        }
+    }
+    return Err("It is not an IPV4 or IPV6 address".to_string());
 }
