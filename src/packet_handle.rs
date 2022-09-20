@@ -1,5 +1,6 @@
 extern crate pnet;
 
+use enum_iterator::Sequence;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use pnet::packet::arp::{ArpPacket};
@@ -21,6 +22,7 @@ use prettytable::{Cell, Row, Table};
 
 use std::fs::{File};
 use std::str::FromStr;
+use pcap::Error;
 
 /* -------- Protocol enum ---------*/
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -76,7 +78,6 @@ impl Display for Protocol {
         }
     }
 }
-
 
 /* -------- Packet info structure ---------*/
 #[derive(Debug)]
@@ -174,7 +175,6 @@ impl PacketInfo {
     }
 }
 
-
 /* -------- Conversation Stats struct ---------*/
 #[derive(Debug)]
 pub struct ConversationStats {
@@ -232,13 +232,29 @@ impl ConversationKey {
     }
 }
 
+#[derive(Sequence)]
+pub enum FilteredProtocol {
+    Dns = 0,
+    Tls,
+    Tcp,
+    Udp,
+    IcmpV4,
+    IcmpV6,
+    Arp
+}
 
-pub enum FilterEnum {
-    IpSorg,
-    IpDest,
-    PortSorg,
-    PortDest,
-    IsoOsiProtocol,
+impl Display for FilteredProtocol {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match *self {
+            FilteredProtocol::Dns => write!(f, "Dns"),
+            FilteredProtocol::Tls => write!(f, "Tls"),
+            FilteredProtocol::Tcp => write!(f, "Tcp"),
+            FilteredProtocol::Udp => write!(f, "Udp"),
+            FilteredProtocol::IcmpV4 => write!(f, "IcmpV4"),
+            FilteredProtocol::IcmpV6 => write!(f, "IcmpV6"),
+            FilteredProtocol::Arp => write!(f, "Arp"),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -274,122 +290,6 @@ impl Filter {
     }
     pub fn set_protocol(&mut self, protocol: Protocol) {
         self.protocol = protocol;
-    }
-
-    pub fn populate(&mut self, filter_enum: FilterEnum) {
-        match filter_enum {
-            FilterEnum::IpSorg => {
-                let mut ip = String::new();
-                print!("> [Source Ip Address]: ");
-                io::stdout().flush().expect("Error");
-                loop {
-                    io::stdin().read_line(&mut ip).expect("Error reading the source IP address");
-                    ip = ip.trim().to_string();
-
-                    if ip == "_".to_string() {
-                        self.ip_srg = None;
-                        break;
-                    }
-                    match ip.parse::<IpAddr>() {
-                        Ok(address) => {
-                            self.ip_srg = Some(address);
-                        }
-                        Err(_) => {
-                            println!("> Please, insert a correct IP address or _!");
-                        }
-                    }
-                }
-            }
-            FilterEnum::IpDest => {
-                let mut ip = String::new();
-                print!("> [Dest Ip Address]: ");
-                io::stdout().flush().expect("Error");
-                loop {
-                    io::stdin().read_line(&mut ip).expect("Error reading the source IP address");
-                    ip = ip.trim().to_string();
-
-                    if ip == "_".to_string() {
-                        self.ip_dest = None;
-                        break;
-                    }
-                    match ip.parse::<IpAddr>() {
-                        Ok(address) => {
-                            self.ip_dest = Some(address);
-                        }
-                        Err(_) => {
-                            println!("> Please, insert a correct port number!");
-                        }
-                    }
-                }
-            }
-            FilterEnum::PortSorg => {
-                let mut prt = String::new();
-                print!("> [Source Port]: ");
-                io::stdout().flush().expect("Error");
-
-                loop {
-                    io::stdin().read_line(&mut prt).expect("Error reading the source port");
-                    prt = prt.trim().to_string();
-
-                    if prt == "_".to_string() {
-                        self.prt_srg = None;
-                        break;
-                    }
-                    match prt.parse::<u16>() {
-                        Ok(port) => {
-                            self.prt_srg = Some(port);
-                        }
-                        Err(_) => {
-                            println!(">Please, insert a correct port number!");
-                        }
-                    }
-                }
-            }
-            FilterEnum::PortDest => {
-                let mut prt = String::new();
-                print!("> [Destination Port]:");
-                io::stdout().flush().expect("Error");
-                loop {
-                    io::stdin().read_line(&mut prt).expect("Error reading the destination port");
-                    prt = prt.trim().to_string();
-
-                    if prt == "_".to_string() {
-                        self.prt_dest = None;
-                        break;
-                    }
-                    match prt.parse::<u16>() {
-                        Ok(port) => {
-                            self.prt_dest = Some(port);
-                        }
-                        Err(_) => {
-                            println!("Please, insert a correct port number!");
-                        }
-                    }
-                }
-            }
-            FilterEnum::IsoOsiProtocol => {
-                let mut prot = String::new();
-                print!("> [Protocol]: ");
-                io::stdout().flush().expect("Error");
-                loop {
-                    io::stdin().read_line(&mut prot).expect("Error reading the source IP address");
-                    prot = prot.trim().to_string();
-
-                    if prot == "_".to_string() {
-                        self.protocol = Protocol::None;
-                        break;
-                    }
-                    match prot.parse::<Protocol>() {
-                        Ok(protocol) => {
-                            self.protocol = protocol;
-                        }
-                        Err(_) => {
-                            println!("> Please, insert a correct protocol name!");
-                        }
-                    }
-                }
-            }
-        }
     }
 }
 

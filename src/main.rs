@@ -9,7 +9,6 @@
 mod packet_handle;
 mod network_handle;
 
-/// This example shows a basic packet logger using libpnet
 extern crate pnet;
 
 use std::collections::HashMap;
@@ -27,8 +26,8 @@ fn main() {
     let mut convs_summaries: HashMap<ConversationKey, ConversationStats> = HashMap::new();
 
 
-    let (interface, time_interval, filename, filter) = network_handle::fast_init_sniffing();
-    //let (interface, time_interval, filename, filter) = init_sniffing();
+    //let (interface, time_interval, filename, filter) = network_handle::fast_init_sniffing();
+    let (interface, time_interval, filename, filter) = network_handle::init_sniffing();
 
     let (_, mut rx) = match datalink::channel(&interface, pnet_datalink::Config::default()) {
         Ok(Ethernet(tx, rx)) => (tx, rx),
