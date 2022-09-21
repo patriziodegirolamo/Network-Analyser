@@ -71,7 +71,7 @@ pub fn init_sniffing() -> (NetworkInterface, usize, String, Filter) {
     let mut my_index = 0;
     let mut interface = select_device_by_name(find_my_device_name(my_index));
     let mut time_interval = 1;
-    let mut filename = "report.txt".to_string();
+    let mut filename = String::new();
     let mut filter = Filter::new();
 
     //TODO: handle the closing!!!!!
@@ -163,9 +163,8 @@ pub fn init_sniffing() -> (NetworkInterface, usize, String, Filter) {
             State::File => {
                 println!();
                 println!("> Please, insert the name of the file where we will save the report. By default is \"report.txt\" [Press E to exit] ");
-
+                filename = String::new();
                 io::stdout().flush().expect("Error");
-
                 match io::stdin().read_line(&mut filename) {
                     Ok(_) => {
                         let cmd = filename.trim();
@@ -174,7 +173,8 @@ pub fn init_sniffing() -> (NetworkInterface, usize, String, Filter) {
                             state = State::Index;
                         }
                         else if cmd == ""{
-                            state = State::Filter
+                            state = State::Filter;
+                            filename = "report.txt".to_string();
                         }
                         else{
                             let file_name_vec :Vec<&str> = cmd.split(".").map(|x| x).collect();
@@ -184,13 +184,15 @@ pub fn init_sniffing() -> (NetworkInterface, usize, String, Filter) {
                                 1 => filename = cmd.to_owned() + ".txt",     //ci aggiungo il txt
 
                                 2 => {
+                                    println!("{:?}", file_name_vec);
                                     //se l'estensione non va bene ci metto txt
-                                    if file_name_vec.last().unwrap().to_string() != ".txt".to_string(){
+                                    if file_name_vec.last().unwrap().to_string() != "txt".to_string(){
                                         println!("non va bene, te lo modifico in \"{}.txt\"", file_name_vec[0]);
                                         filename = file_name_vec[0].to_owned() + ".txt";
                                     }
                                 }
                                 _ => {
+                                    println!("{:?}", file_name_vec);
                                     //ci metto il txt al posto dell' estensione
                                     println!("ESTENSIONE NON SUPPORTATA, te lo modifico in \"{}.txt\"", file_name_vec[0]);
                                     filename = file_name_vec[0].to_owned() + ".txt";
