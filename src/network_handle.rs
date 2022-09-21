@@ -63,8 +63,6 @@ pub enum State{
     PortaSorg,
     PortaDest,
     Protocol,
-    Running,
-    Paused,
 }
 pub fn init_sniffing() -> (NetworkInterface, usize, String, Filter) {
     let mut state = State::Index;
@@ -87,7 +85,6 @@ pub fn init_sniffing() -> (NetworkInterface, usize, String, Filter) {
     println!("                      INITIALIZATION                         ");
     println!("*************************************************************");
     /* Define the interface to use */
-
 
 
     loop{
@@ -139,11 +136,7 @@ pub fn init_sniffing() -> (NetworkInterface, usize, String, Filter) {
                 match io::stdin().read_line(&mut time_interval_str) {
                     Ok(_) => {
                         let cmd = time_interval_str.trim();
-                        if cmd == "E" || cmd == "e" {
-                            println!("Closing the current analysis.....");
-                            state = State::Index;
-                        }
-                        else if cmd == ""{
+                        if cmd == ""{
                             state = State::File;
                         }
                         else{
@@ -168,16 +161,13 @@ pub fn init_sniffing() -> (NetworkInterface, usize, String, Filter) {
                 match io::stdin().read_line(&mut filename) {
                     Ok(_) => {
                         let cmd = filename.trim();
-                        if cmd == "E" || cmd == "e" {
-                            println!("Closing.....");
-                            state = State::Index;
-                        }
-                        else if cmd == ""{
+                        if cmd == ""{
                             state = State::Filter;
                             filename = "report.txt".to_string();
                         }
                         else{
                             let file_name_vec :Vec<&str> = cmd.split(".").map(|x| x).collect();
+                            //TODO: check filename validity
                             match file_name_vec.len() {
                                 0 => println!("Error, something was wrong!"),
 
@@ -216,8 +206,7 @@ pub fn init_sniffing() -> (NetworkInterface, usize, String, Filter) {
                         let cmd = filt.trim();
                         match cmd {
                             "Y" | "y" => state = State::IpSorg,
-                            "" | "N" | "n" => state = State::Running,
-                            "E" | "e" => state = State::Index,
+                            "" | "N" | "n" => state = break,
                             _ => println!("> Please, write a correct answer"),
                         }
                     }
@@ -334,8 +323,7 @@ pub fn init_sniffing() -> (NetworkInterface, usize, String, Filter) {
                         cmd = cmd.trim().to_string();
 
                         if cmd == "" || cmd == "X" || cmd == "x" {
-                            state = State::Running;
-                            continue;
+                            break;
                         }
 
                         match cmd.parse::<usize>(){
@@ -345,7 +333,7 @@ pub fn init_sniffing() -> (NetworkInterface, usize, String, Filter) {
                                     match protocol{
                                         Ok(p) => {
                                             filter.set_protocol(p);
-                                            state = State::Running;
+                                            break;
                                         }
                                         Err(err) => {
                                             println!("Error: {:?}", err)
@@ -363,13 +351,6 @@ pub fn init_sniffing() -> (NetworkInterface, usize, String, Filter) {
                 }
 
             }
-            State::Running => {
-                break;
-            }
-            State::Paused => {
-                break;
-            }
-
         }
     }
 

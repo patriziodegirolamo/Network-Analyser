@@ -25,8 +25,6 @@ use packet_handle::{ConversationStats, ConversationKey, PacketInfo};
 fn main() {
     let mut convs_summaries: HashMap<ConversationKey, ConversationStats> = HashMap::new();
 
-
-    //let (interface, time_interval, filename, filter) = network_handle::fast_init_sniffing();
     let (interface, time_interval, filename, filter) = network_handle::init_sniffing();
 
     let (_, mut rx) = match datalink::channel(&interface, pnet_datalink::Config::default()) {

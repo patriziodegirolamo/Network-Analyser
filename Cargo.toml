@@ -7,11 +7,10 @@ edition = "2021"
 
 [dependencies]
 pcap = "0.10.1"
+pnet = "0.31.0"
 pnet_datalink = "0.31.0"
 dns-parser = "0.8"  # Library used to parse DNS packets
 tls-parser = "0.7"  # Library used to parse TLS packets
 enum-iterator = "1.2.0"
-
+timer = "0.2.0"
 prettytable-rs = "^0.9"
-[dependencies.pnet]
-pnet = "0.31.0"
