@@ -9,6 +9,7 @@ use crate::Status;
 
 pub struct Reporter{
     filename: String,
+    time_interval: usize,
     status_sniffing: Arc<Status>,
     convs_summaries: HashMap<ConversationKey, ConversationStats>,
     status_writing: Arc<Mutex<bool>>,
@@ -19,12 +20,14 @@ pub struct Reporter{
 
 impl Reporter{
     pub fn new(filename: String,
+               time_interval: usize,
                status_sniffing: Arc<Status>,
                status_writing: Arc<Mutex<bool>>,
                receiver_channel: Receiver<PacketInfo>
     ) -> Self{
         Self{
             filename,
+            time_interval,
             status_sniffing,
             convs_summaries: HashMap::new(),
             status_writing,
