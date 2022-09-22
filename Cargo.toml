@@ -14,3 +14,4 @@ tls-parser = "0.7"  # Library used to parse TLS packets
 enum-iterator = "1.2.0"
 timer = "0.2.0"
 prettytable-rs = "^0.9"
+regex = "1.6.0"

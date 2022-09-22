@@ -10,6 +10,7 @@ use pnet::packet::ipv4::Ipv4Packet;
 use enum_iterator::{all};
 use std::thread;
 use std::time::Duration;
+use regex::Regex;
 use crate::{packet_handle, PacketInfo};
 use crate::packet_handle::{Filter, FilteredProtocol, Protocol};
 
@@ -155,7 +156,7 @@ pub fn init_sniffing() -> (NetworkInterface, usize, String, Filter) {
             }
             State::File => {
                 println!();
-                println!("> Please, insert the name of the file where we will save the report. By default is \"report.txt\" [Press E to exit] ");
+                println!("> Please, insert the name of the file where we will save the report in \".txt\" format. By default is \"report.txt\"");
                 filename = String::new();
                 io::stdout().flush().expect("Error");
                 match io::stdin().read_line(&mut filename) {
@@ -166,29 +167,14 @@ pub fn init_sniffing() -> (NetworkInterface, usize, String, Filter) {
                             filename = "report.txt".to_string();
                         }
                         else{
-                            let file_name_vec :Vec<&str> = cmd.split(".").map(|x| x).collect();
-                            //TODO: check filename validity
-                            match file_name_vec.len() {
-                                0 => println!("Error, something was wrong!"),
-
-                                1 => filename = cmd.to_owned() + ".txt",     //ci aggiungo il txt
-
-                                2 => {
-                                    println!("{:?}", file_name_vec);
-                                    //se l'estensione non va bene ci metto txt
-                                    if file_name_vec.last().unwrap().to_string() != "txt".to_string(){
-                                        println!("non va bene, te lo modifico in \"{}.txt\"", file_name_vec[0]);
-                                        filename = file_name_vec[0].to_owned() + ".txt";
-                                    }
-                                }
-                                _ => {
-                                    println!("{:?}", file_name_vec);
-                                    //ci metto il txt al posto dell' estensione
-                                    println!("ESTENSIONE NON SUPPORTATA, te lo modifico in \"{}.txt\"", file_name_vec[0]);
-                                    filename = file_name_vec[0].to_owned() + ".txt";
-                                }
+                            let reg = Regex::new(r"^[\w,\s-]+\.txt$").unwrap();
+                            if reg.is_match(&*cmd) {
+                                filename = cmd.to_string();
+                                state = State::Filter;
                             }
-                            state = State::Filter;
+                            else{
+                                println!("Please, write a correct filename in txt format! It must not contain :       \\ /:*?\"<>|");
+                            }
                         }
                     }
                     Err(err) => {

@@ -846,6 +846,7 @@ dependencies = [
  "pnet",
  "pnet_datalink",
  "prettytable-rs",
+ "regex",
  "timer",
  "tls-parser",
 ]
