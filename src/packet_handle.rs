@@ -16,7 +16,7 @@ use pnet::packet::Packet;
 
 //use std::env;
 use std::io::{self, Write};
-use std::net::{IpAddr};
+use std::net::{IpAddr, Ipv4Addr};
 use std::time::{Duration};
 use prettytable::{Cell, Row, Table};
 
@@ -192,6 +192,11 @@ impl ConversationStats {
             ending_time: Some(end),
         };
     }
+
+    pub fn get_starting_time(&self) -> Option<Duration> {return self.starting_time}
+    pub fn get_ending_time(&self) -> Option<Duration> {return  self.ending_time}
+    pub fn get_tot_bytes(&self) -> usize {return self.tot_bytes}
+
     pub fn set_starting_time(&mut self, start: Duration) {
         self.starting_time = Some(start);
     }
@@ -230,6 +235,12 @@ impl ConversationKey {
             protocol,
         };
     }
+
+    pub fn get_ip_srg(&self) -> IpAddr{ return self.ip_srg}
+    pub fn get_ip_dest(&self) -> IpAddr{ return self.ip_dest}
+    pub fn get_prt_srg(&self) -> u16{ return self.prt_srg}
+    pub fn get_prt_dest(&self) -> u16{ return self.prt_dest}
+    pub fn get_protocol(&self) -> Protocol{ return self.protocol}
 }
 
 #[derive(Sequence)]
@@ -264,6 +275,19 @@ pub struct Filter {
     prt_srg: Option<u16>,
     prt_dest: Option<u16>,
     protocol: Protocol,
+}
+
+impl Display for Filter {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let ip_def = IpAddr::V4(Ipv4Addr::new(1,1,1,1));
+        let prt_def = 0;
+        write!(f, "IP source: {}; IP dest: {}, Port source: {}, Port dest: {}, Protocol: {}",
+               self.ip_srg.unwrap_or_else(|| ip_def),
+               self.ip_dest.unwrap_or_else(|| ip_def),
+               self.prt_srg.unwrap_or_else(|| prt_def),
+               self.prt_dest.unwrap_or_else(|| prt_def),
+               self.protocol)
+    }
 }
 
 impl Filter {
@@ -676,47 +700,3 @@ pub fn handle_ethernet_frame(ethernet: &EthernetPacket, new_packet_info: &mut Pa
         }
     }
 }
-
-
-/*
-*  PRINT on FiLE FUNCTIONS
-*
-*/
-pub fn open_file(filename: String) -> io::Result<File> {
-    return File::options().write(true).truncate(true).create(true).open(filename);
-}
-
-pub fn write_summaries(file: &mut File, convs_summaries: HashMap<ConversationKey, ConversationStats>) {
-
-    // Create the table
-    let mut table = Table::new();
-
-    table.add_row(Row::new(vec![
-        Cell::new("Ip_srg").style_spec("b"),
-        Cell::new("Prt_srg").style_spec("b"),
-        Cell::new("Ip_dest").style_spec("b"),
-        Cell::new("Prt_dest").style_spec("b"),
-        Cell::new("Protocol").style_spec("b"),
-        Cell::new("Tot_bytes").style_spec("b"),
-        Cell::new("starting_time (nano_s)").style_spec("b"),
-        Cell::new("ending_time (nano_s)").style_spec("b"),
-    ]));
-
-
-    for (key, elem) in &convs_summaries {
-        table.add_row(Row::new(vec![
-            Cell::new(&*key.ip_srg.to_string()), // s  : String -> *s : str (via Deref<Target=str>) -> &*s: &str
-            Cell::new(&*key.prt_srg.to_string()),
-            Cell::new(&*key.ip_dest.to_string()),
-            Cell::new(&*key.prt_dest.to_string()),
-            Cell::new(&*key.protocol.to_string()),
-            Cell::new(&*elem.tot_bytes.to_string()),
-            Cell::new(&*elem.starting_time.unwrap().as_nanos().to_string()),
-            Cell::new(&*elem.ending_time.unwrap().as_nanos().to_string()),
-        ]));
-    }
-
-    // Print the table on file
-    table.print(file).expect("Error");
-}
-

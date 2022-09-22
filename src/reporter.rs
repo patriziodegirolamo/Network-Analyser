@@ -1,0 +1,82 @@
+use std::collections::HashMap;
+use std::fs::File;
+use std::io;
+use std::sync::{Arc, Mutex};
+use std::sync::mpsc::Receiver;
+use prettytable::{Cell, Row, Table};
+use crate::packet_handle::{ConversationKey, ConversationStats, PacketInfo};
+use crate::Status;
+
+pub struct Reporter{
+    filename: String,
+    status_sniffing: Arc<Status>,
+    convs_summaries: HashMap<ConversationKey, ConversationStats>,
+    status_writing: Arc<Mutex<bool>>,
+
+    //receiver channel to receive packet_infos from the sniffer
+    receiver_channel: Receiver<PacketInfo>
+}
+
+impl Reporter{
+    pub fn new(filename: String,
+               status_sniffing: Arc<Status>,
+               status_writing: Arc<Mutex<bool>>,
+               receiver_channel: Receiver<PacketInfo>
+    ) -> Self{
+        Self{
+            filename,
+            status_sniffing,
+            convs_summaries: HashMap::new(),
+            status_writing,
+            receiver_channel
+        }
+    }
+
+    pub fn report(&mut self){
+        return;
+    }
+}
+
+
+/*
+*  PRINT on FiLE FUNCTIONS
+*
+*/
+fn open_file(filename: String) -> io::Result<File> {
+    return File::options().write(true).truncate(true).create(true).open(filename);
+}
+
+fn write_summaries(file: &mut File, convs_summaries: HashMap<ConversationKey, ConversationStats>) {
+
+    // Create the table
+    let mut table = Table::new();
+
+    table.add_row(Row::new(vec![
+        Cell::new("Ip_srg").style_spec("b"),
+        Cell::new("Prt_srg").style_spec("b"),
+        Cell::new("Ip_dest").style_spec("b"),
+        Cell::new("Prt_dest").style_spec("b"),
+        Cell::new("Protocol").style_spec("b"),
+        Cell::new("Tot_bytes").style_spec("b"),
+        Cell::new("starting_time (nano_s)").style_spec("b"),
+        Cell::new("ending_time (nano_s)").style_spec("b"),
+    ]));
+
+
+    for (key, elem) in &convs_summaries {
+
+        table.add_row(Row::new(vec![
+            Cell::new(&*key.get_ip_srg().to_string()), // s  : String -> *s : str (via Deref<Target=str>) -> &*s: &str
+            Cell::new(&*key.get_prt_srg().to_string()),
+            Cell::new(&*key.get_ip_dest().to_string()),
+            Cell::new(&*key.get_prt_dest().to_string()),
+            Cell::new(&*key.get_protocol().to_string()),
+            Cell::new(&*elem.get_tot_bytes().to_string()),
+            Cell::new(&*elem.get_starting_time().unwrap().as_nanos().to_string()),
+            Cell::new(&*elem.get_ending_time().unwrap().as_nanos().to_string()),
+        ]));
+    }
+
+    // Print the table on file
+    table.print(file).expect("Error");
+}
