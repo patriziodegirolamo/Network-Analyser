@@ -18,7 +18,7 @@ use crate::packet_handle::{Filter, FilteredProtocol, Protocol};
 /*
 *  INITIALIZATION FUNCTIONS
 *
-*/
+
 
 /**
 Print the name and the description of all the network interfaces found
@@ -53,6 +53,7 @@ pub fn select_device_by_name(name: String) -> NetworkInterface {
 pub fn find_my_device_name(index: usize) -> String {
     return datalink::interfaces().get(index).unwrap().clone().name;
 }
+
 
 pub enum State{
     Index,
@@ -343,6 +344,8 @@ pub fn init_sniffing() -> (NetworkInterface, usize, String, Filter) {
     return (interface, time_interval, filename, filter);
 }
 
+ */
+
 pub fn handle_particular_interfaces(interface: &NetworkInterface, packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) -> bool {
     let mut buf: [u8; 1600] = [0u8; 1600]; //il frame ethernet è di 1518 byte -> sovradimensionato a 1600
     let mut new_ethernet_frame = MutableEthernetPacket::new(&mut buf[..]).unwrap();
@@ -385,6 +388,8 @@ pub fn handle_particular_interfaces(interface: &NetworkInterface, packet: &[u8],
     return false;
 }
 
+
+/*
 pub fn validate_ip_address(ip_str: String) -> Result<IpAddr, String>{
     let vec_ip4 : Vec<&str> = ip_str.split(".").map(|x| x).collect();
     let vec_ip6 : Vec<&str> = ip_str.split(":").map(|x| x).collect();
@@ -428,3 +433,4 @@ pub fn validate_ip_address(ip_str: String) -> Result<IpAddr, String>{
     }
     return Err("It is not an IPV4 or IPV6 address".to_string());
 }
+*/
