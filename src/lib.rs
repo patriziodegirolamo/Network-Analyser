@@ -9,19 +9,25 @@ use std::io;
 use std::io::Write;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::sync::{Arc, Condvar, Mutex};
+use std::sync::mpsc::channel;
 use packet_handle::{Filter};
-use pnet_datalink::{NetworkInterface};
-use std::thread::{JoinHandle};
+use pnet_datalink::{Channel, NetworkInterface};
+use std::thread::{self, JoinHandle};
 use enum_iterator::all;
 use regex::Regex;
 use crate::packet_handle::{FilteredProtocol, Protocol};
+use crate::reporter::Reporter;
+use crate::sniffer::Sniffer;
 
 #[derive(Debug)]
 pub enum ErrorNetworkAnalyser{
-    ErrorQuit,
+    ErrorQuit(String),
     ErrorResume,
-    ErrorPause
+    ErrorPause,
+    ErrorNa(String)
 }
+
+
 
 /*
 impl ErrorQuit{
@@ -68,7 +74,7 @@ pub struct NetworkAnalyser{
     filter: Filter,
     sniffer_handle: Option<JoinHandle<()>>,
     reporter_handle: Option<JoinHandle<()>>,
-    status: Arc<Status>
+    status: Arc<Status>,
 }
 
 impl Display for NetworkAnalyser {
@@ -91,7 +97,7 @@ impl NetworkAnalyser {
             filter: dft_filter,
             sniffer_handle: None,
             reporter_handle: None,
-            status: Arc::new(Status::new())
+            status: Arc::new(Status::new()),
         }
     }
 
@@ -109,6 +115,29 @@ impl NetworkAnalyser {
     }
 
     pub fn start(&mut self) -> Result<(), ErrorNetworkAnalyser>{
+        let (_, mut rcv_interface) = match pnet_datalink::channel(&self.interface, pnet_datalink::Config::default()) {
+            Ok(Channel::Ethernet(tx, rx)) => (tx, rx),
+            Ok(_) => return Err(ErrorNetworkAnalyser::ErrorNa("Error: unhandled channel type".to_string())),
+            Err(e) => return Err(ErrorNetworkAnalyser::ErrorNa("unable to create channel".to_owned() + &e.to_string())),
+        };
+        let (snd_sniffer, rcv_sniffer) = channel();
+        let status_sniffer = self.status.clone();
+        //thread sniffer
+        self.sniffer_handle = Some(thread::spawn(move || {
+            let mut sniffer = Sniffer::new(snd_sniffer, rcv_interface, status_sniffer);
+            sniffer.sniffing();
+        }));
+
+
+        let status_reporter = self.status.clone();
+        let filename = self.filename.clone();
+        let time_interval = self.time_interval.clone();
+        //thread reporter
+        self.reporter_handle = Some(thread::spawn(move || {
+            let mut reporter = Reporter::new(filename, time_interval, status_reporter, rcv_sniffer);
+            reporter.reporting();
+        }));
+
         return Ok(())
     }
 
@@ -116,8 +145,28 @@ impl NetworkAnalyser {
         return Ok(())
     }
 
-    pub fn quit(&mut self){
-        return
+    pub fn quit(&mut self) -> Result<(), ErrorNetworkAnalyser>{
+
+        println!("Network analyser is quiting");
+        let mut status_value = self.status.mutex.lock().unwrap();
+        *status_value = StatusValue::Exit;
+
+        if let Some(sniffer_handle) = self.sniffer_handle.take(){
+            sniffer_handle.join().unwrap();
+        }
+        else{
+            return Err(ErrorNetworkAnalyser::ErrorQuit("Error: cannot quit if you don't start".to_string()))
+        }
+
+        if let Some(reporter_handle) = self.reporter_handle.take(){
+            reporter_handle.join().unwrap();
+        }
+        else{
+            return Err(ErrorNetworkAnalyser::ErrorQuit("Error: cannot quit if you don't start".to_string()))
+        }
+
+        println!("Network analyser, reporter has quit");
+        return Ok(());
     }
 
     pub fn resume(&mut self) -> Result<(), ErrorNetworkAnalyser>{

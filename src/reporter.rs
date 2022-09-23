@@ -4,8 +4,10 @@ use std::io;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::Receiver;
 use prettytable::{Cell, Row, Table};
+use std::thread;
+use std::time::Duration;
 use crate::packet_handle::{ConversationKey, ConversationStats, PacketInfo};
-use crate::Status;
+use crate::{Status, StatusValue};
 
 pub struct Reporter{
     filename: String,
@@ -22,7 +24,6 @@ impl Reporter{
     pub fn new(filename: String,
                time_interval: usize,
                status_sniffing: Arc<Status>,
-               status_writing: Arc<Mutex<bool>>,
                receiver_channel: Receiver<PacketInfo>
     ) -> Self{
         Self{
@@ -30,13 +31,28 @@ impl Reporter{
             time_interval,
             status_sniffing,
             convs_summaries: HashMap::new(),
-            status_writing,
+            status_writing: Arc::new(Mutex::new(false)),
             receiver_channel
         }
     }
 
-    pub fn report(&mut self){
-        return;
+    pub fn reporting(&mut self){
+        loop {
+            let status_sniffing_value = self.status_sniffing.mutex.lock().unwrap();
+            match *status_sniffing_value {
+                StatusValue::Running => {
+                    println!("Reporter is running")
+                }
+                StatusValue::Paused => {
+                    println!("Reporter is paused");
+                }
+                StatusValue::Exit => {
+                    println!("Reporter exit");
+                    break;
+                }
+            }
+            thread::sleep(Duration::from_secs(3));
+        }
     }
 }
 

@@ -26,17 +26,17 @@ fn main() {
             match cmd.trim() {
                 "P" | "p" => {
                     na.pause().unwrap();
-                    println!("sniffing paused...")
+                    println!("main: sniffing paused...")
                 },
                 "X" | "x" => {
-                    na.quit();
-                    println!("sniffing quitted...");
+                    na.quit().unwrap();
+                    println!("main: sniffing quitted...");
                     break;
                 },
                 "R" | "r" => {
                     if na.resume().is_ok() {
                         na.resume().unwrap();
-                        println!("sniffing resumed...");
+                        println!("main: sniffing resumed...");
                         println!("SNIFFING...");
                     } else {
                         println!("sniffing is already running")
