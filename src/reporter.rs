@@ -46,6 +46,8 @@ impl Reporter{
                     }
                     StatusValue::Paused => {
                         println!("Reporter is paused");
+
+                        //self.status_sniffing.cvar.wait_while(self.status_sniffing.mutex., is_paused(*status_sniffing_value)).unwrap()
                     }
                     StatusValue::Exit => {
                         println!("Reporter exit");
@@ -100,4 +102,12 @@ fn write_summaries(file: &mut File, convs_summaries: HashMap<ConversationKey, Co
 
     // Print the table on file
     table.print(file).expect("Error");
+}
+
+fn is_paused(state: StatusValue) -> bool{
+    return match state {
+        StatusValue::Running => false,
+        StatusValue::Paused => true,
+        StatusValue::Exit => false
+    }
 }

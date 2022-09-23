@@ -25,21 +25,24 @@ fn main() {
         if io::stdin().read_line(&mut cmd).is_ok() {
             match cmd.trim() {
                 "P" | "p" => {
-                    na.pause().unwrap();
-                    println!("main: sniffing paused...")
+                    match na.pause() {
+                        Ok(_) => println!("main: sniffing paused..."),
+                        Err(err) => println!("{}",err)
+                    }
                 },
                 "X" | "x" => {
-                    na.quit().unwrap();
-                    println!("main: sniffing quitted...");
-                    break;
+                    match na.quit() {
+                        Ok(_) => println!("main: sniffing quitted..."),
+                        Err(err) => println!("{}", err)
+                    }
                 },
                 "R" | "r" => {
-                    if na.resume().is_ok() {
-                        na.resume().unwrap();
-                        println!("main: sniffing resumed...");
-                        println!("SNIFFING...");
-                    } else {
-                        println!("sniffing is already running")
+                    match na.resume() {
+                        Ok(_) => {
+                            println!("main: sniffing resumed...");
+                            println!("SNIFFING...");
+                        }
+                        Err(err) => println!("{}",err)//println!("sniffing is already running")
                     }
                 },
                 _ => println!("unknown command")

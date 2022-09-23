@@ -22,30 +22,25 @@ use crate::sniffer::Sniffer;
 #[derive(Debug)]
 pub enum ErrorNetworkAnalyser{
     ErrorQuit(String),
-    ErrorResume,
-    ErrorPause,
+    ErrorResume(String),
+    ErrorPause(String),
     ErrorNa(String)
 }
 
-
-
-/*
-impl ErrorQuit{
-    pub fn new(msg: &str) -> Self{
-        ErrorQuit{message: msg.to_string()}
-    }
-}
-
- */
-
 impl Display for ErrorNetworkAnalyser{
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Error Network Analyser: {}", self)
+        match self {
+            ErrorNetworkAnalyser::ErrorQuit(msg) => write!(f, "{}", msg),
+            ErrorNetworkAnalyser::ErrorResume(msg) => write!(f, "{}", msg),
+            ErrorNetworkAnalyser::ErrorPause(msg) => write!(f, "{}", msg),
+            ErrorNetworkAnalyser::ErrorNa(msg) => write!(f, "{}", msg),
+        }
     }
 }
 
 impl Error for ErrorNetworkAnalyser{}
 
+#[derive(PartialEq)]
 enum StatusValue{
     Running,
     Paused,
@@ -143,9 +138,17 @@ impl NetworkAnalyser {
 
     pub fn pause(&mut self) -> Result<(), ErrorNetworkAnalyser>{
 
+        let mut status_value = self.status.mutex.write().unwrap();
+
+        if *status_value == StatusValue::Paused{
+            return Err(ErrorNetworkAnalyser::ErrorPause("Error: cannot pause if is already paused".to_string()));
+        }
+        println!("Network analyser is pausing");
+        *status_value = StatusValue::Paused;
 
         return Ok(());
     }
+
 
     pub fn quit(&mut self) -> Result<(), ErrorNetworkAnalyser>{
         {
@@ -173,6 +176,14 @@ impl NetworkAnalyser {
     }
 
     pub fn resume(&mut self) -> Result<(), ErrorNetworkAnalyser>{
+        let mut status_value = self.status.mutex.write().unwrap();
+
+        if *status_value == StatusValue::Running{
+            return Err(ErrorNetworkAnalyser::ErrorPause("Error: cannot resume if is already running".to_string()));
+        }
+        println!("Network analyser is resumed");
+        *status_value = StatusValue::Running;
+
         return Ok(())
     }
 }
