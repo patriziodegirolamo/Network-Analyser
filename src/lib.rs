@@ -48,14 +48,14 @@ enum StatusValue{
 }
 
 pub struct Status{
-    mutex: RwLock<StatusValue>,
+    mutex: Mutex<StatusValue>,
     cvar: Condvar,
 }
 
 impl Status {
     pub fn new() -> Status{
         Status{
-            mutex: RwLock::new(StatusValue::Running),
+            mutex: Mutex::new(StatusValue::Running),
             cvar: Condvar::new()
         }
     }
@@ -138,7 +138,7 @@ impl NetworkAnalyser {
 
     pub fn pause(&mut self) -> Result<(), ErrorNetworkAnalyser>{
 
-        let mut status_value = self.status.mutex.write().unwrap();
+        let mut status_value = self.status.mutex.lock().unwrap();
 
         if *status_value == StatusValue::Paused{
             return Err(ErrorNetworkAnalyser::ErrorPause("Error: cannot pause if is already paused".to_string()));
@@ -152,20 +152,25 @@ impl NetworkAnalyser {
 
     pub fn quit(&mut self) -> Result<(), ErrorNetworkAnalyser>{
         {
-            let mut status_value = self.status.mutex.write().unwrap();
+            let mut status_value = self.status.mutex.lock().unwrap();
             println!("Network analyser is quiting");
             *status_value = StatusValue::Exit;
+            self.status.cvar.notify_one();
         }
 
         if let Some(sniffer_handle) = self.sniffer_handle.take(){
+            println!("Joining Sniffer");
             sniffer_handle.join().unwrap();
+            println!("Joining Sniffer, Done!");
         }
         else{
             return Err(ErrorNetworkAnalyser::ErrorQuit("Error: cannot quit if you don't start".to_string()))
         }
 
         if let Some(reporter_handle) = self.reporter_handle.take(){
+            println!("Joining Reporter");
             reporter_handle.join().unwrap();
+            println!("Joining Reporter, Done!");
         }
         else{
             return Err(ErrorNetworkAnalyser::ErrorQuit("Error: cannot quit if you don't start".to_string()))
@@ -176,14 +181,14 @@ impl NetworkAnalyser {
     }
 
     pub fn resume(&mut self) -> Result<(), ErrorNetworkAnalyser>{
-        let mut status_value = self.status.mutex.write().unwrap();
+        let mut status_value = self.status.mutex.lock().unwrap();
 
         if *status_value == StatusValue::Running{
             return Err(ErrorNetworkAnalyser::ErrorPause("Error: cannot resume if is already running".to_string()));
         }
         println!("Network analyser is resumed");
         *status_value = StatusValue::Running;
-
+        self.status.cvar.notify_one();
         return Ok(())
     }
 }

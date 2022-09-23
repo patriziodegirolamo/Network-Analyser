@@ -39,23 +39,25 @@ impl Reporter{
     pub fn reporting(&mut self){
         loop {
             {
-                let status_sniffing_value = self.status_sniffing.mutex.read().unwrap();
+                let mut status_sniffing_value = self.status_sniffing.mutex.lock().unwrap();
                 match *status_sniffing_value {
                     StatusValue::Running => {
-                        println!("Reporter is running")
+                        //println!("Reporter is running")
                     }
                     StatusValue::Paused => {
-                        println!("Reporter is paused");
+                        //println!("Reporter is paused");
 
-                        //self.status_sniffing.cvar.wait_while(self.status_sniffing.mutex., is_paused(*status_sniffing_value)).unwrap()
+                        while is_paused(&status_sniffing_value){
+                            status_sniffing_value = self.status_sniffing.cvar.wait(status_sniffing_value).unwrap();
+                        }
                     }
                     StatusValue::Exit => {
-                        println!("Reporter exit");
+                        //println!("Reporter exit");
                         return;
                     }
                 }
             }
-            thread::sleep(Duration::from_secs(2));
+            //thread::sleep(Duration::from_secs(2));
         }
     }
 }
@@ -104,7 +106,7 @@ fn write_summaries(file: &mut File, convs_summaries: HashMap<ConversationKey, Co
     table.print(file).expect("Error");
 }
 
-fn is_paused(state: StatusValue) -> bool{
+fn is_paused(state: &StatusValue) -> bool{
     return match state {
         StatusValue::Running => false,
         StatusValue::Paused => true,

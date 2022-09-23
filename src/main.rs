@@ -32,7 +32,10 @@ fn main() {
                 },
                 "X" | "x" => {
                     match na.quit() {
-                        Ok(_) => println!("main: sniffing quitted..."),
+                        Ok(_) => {
+                            println!("main: sniffing quitted...");
+                            return
+                        },
                         Err(err) => println!("{}", err)
                     }
                 },
