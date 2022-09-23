@@ -38,20 +38,22 @@ impl Reporter{
 
     pub fn reporting(&mut self){
         loop {
-            let status_sniffing_value = self.status_sniffing.mutex.lock().unwrap();
-            match *status_sniffing_value {
-                StatusValue::Running => {
-                    println!("Reporter is running")
-                }
-                StatusValue::Paused => {
-                    println!("Reporter is paused");
-                }
-                StatusValue::Exit => {
-                    println!("Reporter exit");
-                    break;
+            {
+                let status_sniffing_value = self.status_sniffing.mutex.read().unwrap();
+                match *status_sniffing_value {
+                    StatusValue::Running => {
+                        println!("Reporter is running")
+                    }
+                    StatusValue::Paused => {
+                        println!("Reporter is paused");
+                    }
+                    StatusValue::Exit => {
+                        println!("Reporter exit");
+                        return;
+                    }
                 }
             }
-            thread::sleep(Duration::from_secs(3));
+            thread::sleep(Duration::from_secs(2));
         }
     }
 }

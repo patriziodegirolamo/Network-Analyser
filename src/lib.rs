@@ -8,7 +8,7 @@ use std::fmt::{Display, Formatter};
 use std::io;
 use std::io::Write;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Condvar, Mutex, RwLock};
 use std::sync::mpsc::channel;
 use packet_handle::{Filter};
 use pnet_datalink::{Channel, NetworkInterface};
@@ -53,14 +53,14 @@ enum StatusValue{
 }
 
 pub struct Status{
-    mutex: Mutex<StatusValue>,
+    mutex: RwLock<StatusValue>,
     cvar: Condvar,
 }
 
 impl Status {
     pub fn new() -> Status{
         Status{
-            mutex: Mutex::new(StatusValue::Running),
+            mutex: RwLock::new(StatusValue::Running),
             cvar: Condvar::new()
         }
     }
@@ -142,14 +142,17 @@ impl NetworkAnalyser {
     }
 
     pub fn pause(&mut self) -> Result<(), ErrorNetworkAnalyser>{
-        return Ok(())
+
+
+        return Ok(());
     }
 
     pub fn quit(&mut self) -> Result<(), ErrorNetworkAnalyser>{
-
-        println!("Network analyser is quiting");
-        let mut status_value = self.status.mutex.lock().unwrap();
-        *status_value = StatusValue::Exit;
+        {
+            let mut status_value = self.status.mutex.write().unwrap();
+            println!("Network analyser is quiting");
+            *status_value = StatusValue::Exit;
+        }
 
         if let Some(sniffer_handle) = self.sniffer_handle.take(){
             sniffer_handle.join().unwrap();

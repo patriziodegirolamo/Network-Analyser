@@ -23,20 +23,22 @@ impl Sniffer {
 
     pub fn sniffing(&mut self) {
         loop {
-            let status_value = self.status.mutex.lock().unwrap();
-            match *status_value {
-                StatusValue::Running => {
-                    println!("Sniffer is running")
-                }
-                StatusValue::Paused => {
-                    println!("Sniffer is paused");
-                }
-                StatusValue::Exit => {
-                    println!("Sniffer exit");
-                    break;
+            {
+                let status_value = self.status.mutex.read().unwrap();
+                match *status_value {
+                    StatusValue::Running => {
+                        println!("Sniffer is running")
+                    }
+                    StatusValue::Paused => {
+                        println!("Sniffer is paused");
+                    }
+                    StatusValue::Exit => {
+                        println!("Sniffer exit");
+                        return;
+                    }
                 }
             }
-            thread::sleep(Duration::from_secs(3));
+            thread::sleep(Duration::from_secs(2));
 
         }
     }
