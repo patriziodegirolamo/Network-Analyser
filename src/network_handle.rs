@@ -346,6 +346,7 @@ pub fn init_sniffing() -> (NetworkInterface, usize, String, Filter) {
 
  */
 
+/*
 pub fn handle_particular_interfaces(interface: &NetworkInterface, packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) -> bool {
     let mut buf: [u8; 1600] = [0u8; 1600]; //il frame ethernet è di 1518 byte -> sovradimensionato a 1600
     let mut new_ethernet_frame = MutableEthernetPacket::new(&mut buf[..]).unwrap();
@@ -388,6 +389,8 @@ pub fn handle_particular_interfaces(interface: &NetworkInterface, packet: &[u8],
     return false;
 }
 
+
+ */
 
 /*
 pub fn validate_ip_address(ip_str: String) -> Result<IpAddr, String>{

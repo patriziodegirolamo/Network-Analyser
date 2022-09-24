@@ -133,19 +133,23 @@ impl NetworkAnalyser {
             Err(e) => return Err(ErrorNetworkAnalyser::ErrorNa("unable to create channel".to_owned() + &e.to_string())),
         };
 
+        //thread sniffer
         let (snd_sniffer, rcv_sniffer) = channel();
         let status_sniffer = self.status.clone();
-        //thread sniffer
+        let interface = self.interface.clone();
+        let filter = self.filter.clone();
+
         self.sniffer_handle = Some(thread::spawn(move || {
-            let mut sniffer = Sniffer::new(snd_sniffer, rcv_interface, status_sniffer);
+            let mut sniffer = Sniffer::new(interface, filter,snd_sniffer, rcv_interface, status_sniffer);
             sniffer.sniffing();
         }));
 
 
+        //thread reporter
         let status_reporter = self.status.clone();
         let filename = self.filename.clone();
         let time_interval = self.time_interval.clone();
-        //thread reporter
+
         self.reporter_handle = Some(thread::spawn(move || {
             let mut reporter = Reporter::new(filename, time_interval, status_reporter, rcv_sniffer);
             reporter.reporting();

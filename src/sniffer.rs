@@ -1,13 +1,17 @@
+use std::net::{IpAddr, Ipv4Addr};
 use std::ops::Deref;
 use std::sync::{Arc, MutexGuard};
 use std::sync::mpsc::Sender;
-use pnet_datalink::DataLinkReceiver;
+use pnet_datalink::{DataLinkReceiver, NetworkInterface};
+use pnet::packet::ethernet::{EthernetPacket};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 use crate::packet_handle::PacketInfo;
-use crate::{Status, StatusValue};
+use crate::{Filter, packet_handle, Protocol, Status, StatusValue};
 
 pub struct Sniffer {
+    interface: NetworkInterface,
+    filter: Filter,
     //sender channel to send packet_infos to the reporter
     sender_channel: Sender<PacketInfo>,
 
@@ -18,44 +22,58 @@ pub struct Sniffer {
 }
 
 impl Sniffer {
-    pub fn new(sender_channel: Sender<PacketInfo>, receiver_channel: Box<dyn DataLinkReceiver>, status: Arc<Status>) -> Self {
-        Self { sender_channel, receiver_channel, status }
+    pub fn new(interface: NetworkInterface, filter: Filter, sender_channel: Sender<PacketInfo>, receiver_channel: Box<dyn DataLinkReceiver>, status: Arc<Status>) -> Self {
+        Self { interface, filter, sender_channel, receiver_channel, status }
     }
 
     pub fn sniffing(&mut self) {
         let mut status = StatusValue::Exit;
+        let time_0 = SystemTime::now();
         loop {
-                {
-                    let status_value = self.status.mutex.lock().unwrap();
-                    status = *status_value;
-                }
-                if status == StatusValue::Exit {
-                    println!("Sniffer exit");
-                    return;
-                }
 
-                match *status_value {
-                    StatusValue::Running => {
-                        if *status_value != status
-                        {
-                            println!("Sniffer is running");
-                            status = StatusValue::Running;
+            match self.receiver_channel.next() {
+                Ok(packet) => {
+                    {
+                        let status_value = self.status.mutex.lock().unwrap();
+                        status = *status_value;
+                    }
+
+                    match status {
+                        StatusValue::Running => {
+                            // Packet arrival time
+                            let intial_time = SystemTime::now().duration_since(time_0).expect("TIME ERROR");
+
+                            // Create a data structure to host the information got from the packet
+                            let mut new_packet_info = PacketInfo::new();
+
+                            // Set arrival packet time
+                            PacketInfo::set_time(&mut new_packet_info, intial_time);
+
+                            // se è un caso particolare, faccio l'handle con il pacchetto modificato a dovere
+                            //altrimenti faccio l'handle normale
+                            if !packet_handle::handle_particular_interfaces(&self.interface, packet, &mut new_packet_info, &self.filter) {
+                                packet_handle::handle_ethernet_frame(&EthernetPacket::new(packet).unwrap(), &mut new_packet_info, &self.filter);
+                            }
+
+                            self.sender_channel.send(new_packet_info).unwrap();
+                        }
+                        StatusValue::Paused => {
+                            continue;
+                        }
+                        StatusValue::Exit => {
+                            println!("Sniffer exit");
+                            return;
                         }
                     }
-                    StatusValue::Paused => {
-                        if *status_value != status
-                        {
-                            println!("Sniffer is paused");
-                            status = StatusValue::Paused;
-                        }
-                    }
-                    StatusValue::Exit => {
-                        println!("Sniffer exit");
-                        return;
-                    }
-                }
 
-            thread::sleep(Duration::from_millis(10));
+                }
+                Err(e) => println!("packetdump: unable to receive packet: {}", e),      //TODO: GESTIRE ERRORE
+            }
+
+
+
+
+            //thread::sleep(Duration::from_millis(10));
         }
     }
 }

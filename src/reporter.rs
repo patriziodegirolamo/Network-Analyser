@@ -38,14 +38,16 @@ impl Reporter {
 
     pub fn reporting(&mut self) {
         let mut status = StatusValue::Exit;
+
+        //TODO: spostare la open nello start e gestire errore
+        let mut file = open_file(&self.filename).unwrap();
         loop {
             {
                 let mut status_sniffing_value = self.status_sniffing.mutex.lock().unwrap();
 
                 match *status_sniffing_value {
                     StatusValue::Running => {
-                        if status != StatusValue::Running
-                        {
+                        if status != StatusValue::Running {
                             println!("Reporter is running");
                             status = StatusValue::Running;
                         }
@@ -54,6 +56,11 @@ impl Reporter {
                         println!("Reporter is paused");
                         status = StatusValue::Paused;
                         status_sniffing_value = self.status_sniffing.cvar.wait_while(status_sniffing_value, |s| is_paused(&*s)).unwrap();
+
+                        println!("              after paused!");
+                        //Temporaneo
+                        let mut status_writing_value = self.status_writing.lock().unwrap();
+                        *status_writing_value = true;
                     }
                     StatusValue::Exit => {
                         println!("Reporter exit");
@@ -61,7 +68,39 @@ impl Reporter {
                     }
                 }
             }
-            thread::sleep(Duration::from_millis(3000));
+            //SE E' ARRIVATO QUI, LO STATUS E' RUNNING
+
+            while let Ok(new_packet_info) = self.receiver_channel.try_recv(){
+                if new_packet_info.get_printed(){
+                    // Create the key of the packet considering (ip_sorg, ip_dest, port_sorg, port_dest, prot)
+                    let key = ConversationKey::new_key(new_packet_info.get_ip_sorgente().unwrap(),
+                                                       new_packet_info.get_ip_destinazione().unwrap(),
+                                                       new_packet_info.get_porta_sorgente(),
+                                                       new_packet_info.get_porta_destinazione(),
+                                                       new_packet_info.get_protocol());
+                    // If the packet belongs to a conversation already present in the map, update the stats, otherwise add a new record
+                    self.convs_summaries.entry(key)
+                        .and_modify(|entry| {
+                            entry.set_tot_bytes(new_packet_info.get_dim());
+                            entry.set_ending_time(new_packet_info.get_time().unwrap());
+                        })
+                        .or_insert(ConversationStats::new(
+                            new_packet_info.get_dim(),
+                            new_packet_info.get_time().unwrap(),
+                            new_packet_info.get_time().unwrap()));
+                }
+
+                {
+                    let mut status_writing_value = self.status_writing.lock().unwrap();
+                    if *status_writing_value == true {
+                        println!("          STAMPA!");
+                        *status_writing_value = false;
+                        write_summaries(&mut file, &self.convs_summaries);
+                        self.convs_summaries.clear();
+                    }
+                }
+
+            }
         }
     }
 }
@@ -71,11 +110,12 @@ impl Reporter {
 *  PRINT on FiLE FUNCTIONS
 *
 */
-fn open_file(filename: String) -> io::Result<File> {
+fn open_file(filename: &String) -> io::Result<File> {
+    //TODO: GESTIRE ERRORE APERTURA FILE ???
     return File::options().write(true).truncate(true).create(true).open(filename);
 }
 
-fn write_summaries(file: &mut File, convs_summaries: HashMap<ConversationKey, ConversationStats>) {
+fn write_summaries(file: &mut File, convs_summaries: &HashMap<ConversationKey, ConversationStats>) {
 
     // Create the table
     let mut table = Table::new();
@@ -92,7 +132,7 @@ fn write_summaries(file: &mut File, convs_summaries: HashMap<ConversationKey, Co
     ]));
 
 
-    for (key, elem) in &convs_summaries {
+    for (key, elem) in convs_summaries {
         table.add_row(Row::new(vec![
             Cell::new(&*key.get_ip_srg().to_string()), // s  : String -> *s : str (via Deref<Target=str>) -> &*s: &str
             Cell::new(&*key.get_prt_srg().to_string()),

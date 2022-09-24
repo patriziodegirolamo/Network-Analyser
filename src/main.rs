@@ -35,7 +35,10 @@ fn main() {
         if io::stdin().read_line(&mut cmd).is_ok() {
             match cmd.trim() {
                 "P" | "p" => na.pause().unwrap_or_else(|err| println!("{}", err) ),
-                "X" | "x" => na.quit().unwrap_or_else(|err| println!("{}", err) ),
+                "X" | "x" => {
+                    na.quit().unwrap_or_else(|err| println!("{}", err) );
+                    break;
+                },
                 "R" | "r" => na.resume().unwrap_or_else(|err| println!("{}", err) ),
                 _ => println!("> [Error]: Unknown command")
             }

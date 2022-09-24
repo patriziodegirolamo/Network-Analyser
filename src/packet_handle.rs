@@ -4,7 +4,7 @@ use enum_iterator::Sequence;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use pnet::packet::arp::{ArpPacket};
-use pnet::packet::ethernet::{EtherTypes, EthernetPacket};
+use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
 use pnet::packet::icmp::{echo_reply, echo_request, IcmpPacket, IcmpTypes};
 use pnet::packet::icmpv6::Icmpv6Packet;
 use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
@@ -23,6 +23,7 @@ use prettytable::{Cell, Row, Table};
 use std::fs::{File};
 use std::str::FromStr;
 use pcap::Error;
+use pnet_datalink::{MacAddr, NetworkInterface};
 
 /* -------- Protocol enum ---------*/
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -270,7 +271,7 @@ impl Display for FilteredProtocol {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Filter {
     ip_srg: Option<IpAddr>,
     ip_dest: Option<IpAddr>,
@@ -334,6 +335,7 @@ fn handle_dns_packet(packet: &[u8], new_packet_info: &mut PacketInfo, filter: &F
         }
 
         if new_packet_info.printed {
+            /*
             println!(
                 "DNS Packet: {}:{} > {}:{}",
                 new_packet_info.ip_sorg.unwrap(),
@@ -341,6 +343,8 @@ fn handle_dns_packet(packet: &[u8], new_packet_info: &mut PacketInfo, filter: &F
                 new_packet_info.ip_dest.unwrap(),
                 new_packet_info.prt_dest,
             );
+
+             */
         }
     }
 }
@@ -354,6 +358,7 @@ fn handle_tls_packet(packet: &[u8], new_packet_info: &mut PacketInfo, filter: &F
         }
 
         if new_packet_info.printed {
+            /*
             println!(
                 "TLS Packet: {}:{} > {}:{}",
                 new_packet_info.ip_sorg.unwrap(),
@@ -361,6 +366,8 @@ fn handle_tls_packet(packet: &[u8], new_packet_info: &mut PacketInfo, filter: &F
                 new_packet_info.ip_dest.unwrap(),
                 new_packet_info.prt_dest,
             );
+
+             */
         }
         true
     } else {
@@ -393,6 +400,7 @@ fn handle_udp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_pac
             handle_dns_packet(udp.payload(), new_packet_info, filter);
         } else if new_packet_info.printed {
             if filter.protocol == Protocol::None || filter.protocol == Protocol::Udp {
+                /*
                 println!(
                     "UDP Packet: {}:{} > {}:{}; length: {}",
                     source,
@@ -401,6 +409,8 @@ fn handle_udp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_pac
                     prt_dest,
                     udp.get_length()
                 );
+
+                 */
             }
         }
     } else {
@@ -421,6 +431,7 @@ fn handle_icmp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_pa
             match icmp_packet.get_icmp_type() {
                 IcmpTypes::EchoReply => {
                     let echo_reply_packet = echo_reply::EchoReplyPacket::new(packet).unwrap();
+                    /*
                     println!(
                         "ICMP echo reply {} -> {} (seq={:?}, id={:?})",
                         source,
@@ -428,9 +439,12 @@ fn handle_icmp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_pa
                         echo_reply_packet.get_sequence_number(),
                         echo_reply_packet.get_identifier()
                     );
+
+                     */
                 }
                 IcmpTypes::EchoRequest => {
                     let echo_request_packet = echo_request::EchoRequestPacket::new(packet).unwrap();
+                    /*
                     println!(
                         "ICMP echo request {} -> {} (seq={:?}, id={:?})",
                         source,
@@ -438,13 +452,20 @@ fn handle_icmp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_pa
                         echo_request_packet.get_sequence_number(),
                         echo_request_packet.get_identifier()
                     );
+
+                     */
                 }
-                _ => println!(
+                _ => {
+                    /*
+                    println!(
                     "ICMP packet {} -> {} (type={:?})",
                     source,
                     destination,
                     icmp_packet.get_icmp_type()
-                ),
+                )
+
+                     */
+                },
             }
         } else {}
     } else {
@@ -461,12 +482,15 @@ fn handle_icmpv6_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_
         if filter.protocol != Protocol::IcmpV6 || filter.protocol != Protocol::IcmpV6 {
             new_packet_info.set_not_printed();
         } else if new_packet_info.printed {
+            /*
             println!(
                 "ICMPv6 packet {} -> {} (type={:?})",
                 source,
                 destination,
                 icmpv6_packet.get_icmpv6_type()
             )
+
+             */
         }
     } else {
         println!("Malformed ICMPv6 Packet");
@@ -498,6 +522,7 @@ fn handle_tcp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_pac
             handle_dns_packet(tcp.payload(), new_packet_info, filter);
         } else if handle_tls_packet(tcp.payload(), new_packet_info, filter) {} else if new_packet_info.printed {
             if filter.protocol == Protocol::None || filter.protocol == Protocol::Tcp {
+                /*
                 println!(
                     "TCP Packet: {}:{} > {}:{}; length: {}",
                     source,
@@ -506,6 +531,8 @@ fn handle_tcp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_pac
                     prt_dest,
                     packet.len()
                 );
+
+                 */
             }
         }
     } else {
@@ -667,6 +694,7 @@ fn handle_arp_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInfo
         PacketInfo::set_protocol(new_packet_info, Protocol::Arp);
 
         if new_packet_info.printed {
+            /*
             println!(
                 "ARP packet: {}({}) > {}({}); operation: {:?}",
                 ethernet.get_source(),
@@ -675,6 +703,8 @@ fn handle_arp_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInfo
                 header.get_target_proto_addr(),
                 header.get_operation(),
             );
+
+             */
         }
     } else {
         println!("Malformed ARP Packet");
@@ -692,6 +722,7 @@ pub fn handle_ethernet_frame(ethernet: &EthernetPacket, new_packet_info: &mut Pa
         EtherTypes::Arp => handle_arp_packet(ethernet, new_packet_info, filter),
         _ => {
             if filter.protocol == Protocol::None {
+                /*
                 println!(
                     "Unknown packet: {} > {}; ethertype: {:?} length: {}",
                     ethernet.get_source(),
@@ -699,7 +730,51 @@ pub fn handle_ethernet_frame(ethernet: &EthernetPacket, new_packet_info: &mut Pa
                     ethernet.get_ethertype(),
                     ethernet.packet().len()
                 )
+
+                 */
             }
         }
     }
+}
+
+pub fn handle_particular_interfaces(interface: &NetworkInterface, packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) -> bool {
+    let mut buf: [u8; 1600] = [0u8; 1600]; //il frame ethernet è di 1518 byte -> sovradimensionato a 1600
+    let mut new_ethernet_frame = MutableEthernetPacket::new(&mut buf[..]).unwrap();
+    let payload_offset;
+    if cfg!(any(target_os = "macos", target_os = "ios"))
+        && interface.is_up()
+        && !interface.is_broadcast()
+        && ((!interface.is_loopback() && interface.is_point_to_point())
+        || interface.is_loopback())
+    {
+        if interface.is_loopback() {
+            // The pnet code for BPF loopback adds a zero'd out Ethernet header
+            payload_offset = 14;
+        } else {
+            // Maybe is TUN interface
+            payload_offset = 0;
+        }
+        if packet.len() > payload_offset {
+            let version = Ipv4Packet::new(&packet[payload_offset..]).unwrap().get_version();
+
+            if version == 4 {
+                //println!("CASO PARTICOLARE 1");
+                new_ethernet_frame.set_destination(MacAddr(0, 0, 0, 0, 0, 0));
+                new_ethernet_frame.set_source(MacAddr(0, 0, 0, 0, 0, 0));
+                new_ethernet_frame.set_ethertype(EtherTypes::Ipv4);
+                new_ethernet_frame.set_payload(&packet[payload_offset..]);
+                handle_ethernet_frame(&new_ethernet_frame.to_immutable(), new_packet_info, &filter);
+                return true;
+            } else if version == 6 {
+                //println!("CASO PARTICOLARE 2");
+                new_ethernet_frame.set_destination(MacAddr(0, 0, 0, 0, 0, 0));
+                new_ethernet_frame.set_source(MacAddr(0, 0, 0, 0, 0, 0));
+                new_ethernet_frame.set_ethertype(EtherTypes::Ipv6);
+                new_ethernet_frame.set_payload(&packet[payload_offset..]);
+                handle_ethernet_frame(&new_ethernet_frame.to_immutable(), new_packet_info, &filter);
+                return true;
+            }
+        }
+    }
+    return false;
 }
