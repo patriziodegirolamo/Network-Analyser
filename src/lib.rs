@@ -160,8 +160,9 @@ impl NetworkAnalyser {
         }));
 
         println!();
-        println!("********************* SNIFFING  ***********************");
-        println!();
+        println!("*******************************************************");
+        println!("**** SNIFFING... ");
+
         return Ok(());
     }
 
@@ -171,7 +172,7 @@ impl NetworkAnalyser {
         if *status_value == StatusValue::Paused {
             return Err(ErrorNetworkAnalyser::ErrorPause("Error: cannot pause if is already paused".to_string()));
         }
-        println!("Network analyser is pausing");
+        println!("**** PAUSE ");
         *status_value = StatusValue::Paused;
 
         return Ok(());
@@ -181,15 +182,15 @@ impl NetworkAnalyser {
     pub fn quit(&mut self) -> Result<(), ErrorNetworkAnalyser> {
         {
             let mut status_value = self.status.mutex.lock().unwrap();
-            println!("Network analyser is quiting");
+
             // If its in pause mode wakeup the reporter
             if *status_value == StatusValue::Paused
             {
-                println!("Sveglio reporter");
                 self.status.cvar.notify_one();
             }
             // Set exit status
             *status_value = StatusValue::Exit;
+            println!("**** QUITTING...");
         }
 
         if let Some(sniffer_handle) = self.sniffer_handle.take() {
@@ -204,7 +205,7 @@ impl NetworkAnalyser {
             return Err(ErrorNetworkAnalyser::ErrorQuit("Error: cannot quit if you don't start".to_string()));
         }
 
-        println!("Network analyser, reporter has quit");
+        println!("************************ THE END  ************************");
         return Ok(());
     }
 
@@ -214,10 +215,11 @@ impl NetworkAnalyser {
         if *status_value == StatusValue::Running {
             return Err(ErrorNetworkAnalyser::ErrorPause("Error: cannot resume if is already running".to_string()));
         }
-        println!("Network analyser is resumed");
+
         *status_value = StatusValue::Running;
         self.status.cvar.notify_one();
-
+        println!("**** SNIFFING RESUMED  ");
+        println!("**** SNIFFING...  ");
         return Ok(());
     }
 }
@@ -227,7 +229,7 @@ impl NetworkAnalyser {
 Print the name and the description of all the network interfaces found
 and returns the total number of interfaces found
  */
-pub fn print_devices() -> usize {
+fn print_devices() -> usize {
     let interfaces = pnet_datalink::interfaces();
     let tot = interfaces.len();
 
@@ -242,7 +244,7 @@ pub fn print_devices() -> usize {
 Select a specific network interface given the name
 it panics if the name is invalid or if there is no network interface with this name
  */
-pub fn select_device_by_name(name: String) -> NetworkInterface {
+fn select_device_by_name(name: String) -> NetworkInterface {
     let interfaces = pnet_datalink::interfaces();
     let chosen_interface = interfaces
         .into_iter()
@@ -253,7 +255,7 @@ pub fn select_device_by_name(name: String) -> NetworkInterface {
     return chosen_interface;
 }
 
-pub fn find_my_device_name(index: usize) -> String {
+fn find_my_device_name(index: usize) -> String {
     return pnet_datalink::interfaces().get(index).unwrap().clone().name;
 }
 
@@ -596,7 +598,7 @@ fn get_filter()-> Result<Filter, ErrorNetworkAnalyser>
 
 
 
-pub fn validate_ip_address(ip_str: String) -> Result<IpAddr, String> {
+fn validate_ip_address(ip_str: String) -> Result<IpAddr, String> {
     let vec_ip4: Vec<&str> = ip_str.split(".").map(|x| x).collect();
     let vec_ip6: Vec<&str> = ip_str.split(":").map(|x| x).collect();
     let mut error = String::new();
