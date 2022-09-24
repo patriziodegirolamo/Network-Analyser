@@ -279,9 +279,10 @@ pub struct Filter {
 
 impl Display for Filter {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        // TODO: mettere delle stampe migliori se è none l'option! (Non valore di default)
         let ip_def = IpAddr::V4(Ipv4Addr::new(1,1,1,1));
         let prt_def = 0;
-        write!(f, "IP source: {}; IP dest: {}, Port source: {}, Port dest: {}, Protocol: {}",
+        write!(f, "[ IP source: {}; IP dest: {}, Port source: {}, Port dest: {}, Protocol: {} ]",
                self.ip_srg.unwrap_or_else(|| ip_def),
                self.ip_dest.unwrap_or_else(|| ip_def),
                self.prt_srg.unwrap_or_else(|| prt_def),

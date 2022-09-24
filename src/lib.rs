@@ -20,49 +20,51 @@ use crate::reporter::Reporter;
 use crate::sniffer::Sniffer;
 
 #[derive(Debug)]
-pub enum ErrorNetworkAnalyser{
+pub enum ErrorNetworkAnalyser {
     ErrorQuit(String),
     ErrorResume(String),
     ErrorPause(String),
-    ErrorNa(String)
+    ErrorNa(String),
+    ErrorAbort(String)
 }
 
-impl Display for ErrorNetworkAnalyser{
+impl Display for ErrorNetworkAnalyser {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             ErrorNetworkAnalyser::ErrorQuit(msg) => write!(f, "{}", msg),
             ErrorNetworkAnalyser::ErrorResume(msg) => write!(f, "{}", msg),
             ErrorNetworkAnalyser::ErrorPause(msg) => write!(f, "{}", msg),
             ErrorNetworkAnalyser::ErrorNa(msg) => write!(f, "{}", msg),
+            ErrorNetworkAnalyser::ErrorAbort(msg) => write!(f, "{}", msg)
         }
     }
 }
 
-impl Error for ErrorNetworkAnalyser{}
+impl Error for ErrorNetworkAnalyser {}
 
 #[derive(PartialEq)]
-enum StatusValue{
+enum StatusValue {
     Running,
     Paused,
     Exit,
 }
 
-pub struct Status{
-    mutex: RwLock<StatusValue>,
+pub struct Status {
+    mutex: Mutex<StatusValue>,
     cvar: Condvar,
 }
 
 impl Status {
-    pub fn new() -> Status{
-        Status{
-            mutex: RwLock::new(StatusValue::Running),
-            cvar: Condvar::new()
+    pub fn new() -> Status {
+        Status {
+            mutex: Mutex::new(StatusValue::Running),
+            cvar: Condvar::new(),
         }
     }
 }
 
 
-pub struct NetworkAnalyser{
+pub struct NetworkAnalyser {
     interface: NetworkInterface,
     time_interval: usize,
     filename: String,
@@ -74,18 +76,22 @@ pub struct NetworkAnalyser{
 
 impl Display for NetworkAnalyser {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Interface: {}; time: {}, filename: {}, filter: {}", self.interface, self.time_interval, self.filename, self.filter)
+        write!(f, "> NETWORK ANALYSER: \n\n\
+                   >> Interface: {}; \n\
+                   >> Time Interval: {} secs; \n\
+                   >> Filename: '{}'; \n\
+                   >> Filter: {};\n", self.interface.name, self.time_interval, self.filename, self.filter)
     }
 }
 
 impl NetworkAnalyser {
-    pub fn new() -> Self{
+    pub fn new() -> Self {
         let dft_interface = select_device_by_name(find_my_device_name(0));
         let dft_time_interval = 5;
         let dft_filename = "report.txt".to_string();
         let dft_filter = Filter::new();
 
-        return Self{
+        return Self {
             interface: dft_interface,
             time_interval: dft_time_interval,
             filename: dft_filename,
@@ -93,28 +99,48 @@ impl NetworkAnalyser {
             sniffer_handle: None,
             reporter_handle: None,
             status: Arc::new(Status::new()),
-        }
+        };
     }
 
-    pub fn init(&mut self) -> Result<(), ErrorNetworkAnalyser>{
+    pub fn init(&mut self) -> Result<(), ErrorNetworkAnalyser> {
         //TODO: gestire errore di init_sniffing
-        let (interface, time_interval, filename, filter) = init_sniffing();
+
+        println!();
+        println!("*************************************************************");
+        println!("*************  N E T W O R K    S N I F F E R  **************");
+        println!("*************************************************************");
+        println!();
+        println!("********************* INITIALIZATION  ***********************");
+
+        // Get interface
+        self.interface = get_interface()?;
+        self.time_interval = get_time_interval(self.time_interval)?;
+        self.filename = get_file_name(&*self.filename)?;
+        self.filter= get_filter()?;
+
+        println!();
+        println!("*************************************************************");
+        println!("{}", self);
+        println!("*************************************************************");
+        println!();
+
+        /*let (interface, time_interval, filename, filter) = init_sniffing();
 
         self.interface = interface;
         self.time_interval = time_interval;
         self.filename = filename;
         self.filter = filter;
-
+        */
         return Ok(());
-
     }
 
-    pub fn start(&mut self) -> Result<(), ErrorNetworkAnalyser>{
+    pub fn start(&mut self) -> Result<(), ErrorNetworkAnalyser> {
         let (_, mut rcv_interface) = match pnet_datalink::channel(&self.interface, pnet_datalink::Config::default()) {
             Ok(Channel::Ethernet(tx, rx)) => (tx, rx),
             Ok(_) => return Err(ErrorNetworkAnalyser::ErrorNa("Error: unhandled channel type".to_string())),
             Err(e) => return Err(ErrorNetworkAnalyser::ErrorNa("unable to create channel".to_owned() + &e.to_string())),
         };
+
         let (snd_sniffer, rcv_sniffer) = channel();
         let status_sniffer = self.status.clone();
         //thread sniffer
@@ -133,14 +159,16 @@ impl NetworkAnalyser {
             reporter.reporting();
         }));
 
-        return Ok(())
+        println!();
+        println!("********************* SNIFFING  ***********************");
+        println!();
+        return Ok(());
     }
 
-    pub fn pause(&mut self) -> Result<(), ErrorNetworkAnalyser>{
+    pub fn pause(&mut self) -> Result<(), ErrorNetworkAnalyser> {
+        let mut status_value = self.status.mutex.lock().unwrap();
 
-        let mut status_value = self.status.mutex.write().unwrap();
-
-        if *status_value == StatusValue::Paused{
+        if *status_value == StatusValue::Paused {
             return Err(ErrorNetworkAnalyser::ErrorPause("Error: cannot pause if is already paused".to_string()));
         }
         println!("Network analyser is pausing");
@@ -150,41 +178,47 @@ impl NetworkAnalyser {
     }
 
 
-    pub fn quit(&mut self) -> Result<(), ErrorNetworkAnalyser>{
+    pub fn quit(&mut self) -> Result<(), ErrorNetworkAnalyser> {
         {
-            let mut status_value = self.status.mutex.write().unwrap();
+            let mut status_value = self.status.mutex.lock().unwrap();
             println!("Network analyser is quiting");
+            // If its in pause mode wakeup the reporter
+            if *status_value == StatusValue::Paused
+            {
+                println!("Sveglio reporter");
+                self.status.cvar.notify_one();
+            }
+            // Set exit status
             *status_value = StatusValue::Exit;
         }
 
-        if let Some(sniffer_handle) = self.sniffer_handle.take(){
+        if let Some(sniffer_handle) = self.sniffer_handle.take() {
             sniffer_handle.join().unwrap();
-        }
-        else{
-            return Err(ErrorNetworkAnalyser::ErrorQuit("Error: cannot quit if you don't start".to_string()))
+        } else {
+            return Err(ErrorNetworkAnalyser::ErrorQuit("Error: cannot quit if you don't start".to_string()));
         }
 
-        if let Some(reporter_handle) = self.reporter_handle.take(){
+        if let Some(reporter_handle) = self.reporter_handle.take() {
             reporter_handle.join().unwrap();
-        }
-        else{
-            return Err(ErrorNetworkAnalyser::ErrorQuit("Error: cannot quit if you don't start".to_string()))
+        } else {
+            return Err(ErrorNetworkAnalyser::ErrorQuit("Error: cannot quit if you don't start".to_string()));
         }
 
         println!("Network analyser, reporter has quit");
         return Ok(());
     }
 
-    pub fn resume(&mut self) -> Result<(), ErrorNetworkAnalyser>{
-        let mut status_value = self.status.mutex.write().unwrap();
+    pub fn resume(&mut self) -> Result<(), ErrorNetworkAnalyser> {
+        let mut status_value = self.status.mutex.lock().unwrap();
 
-        if *status_value == StatusValue::Running{
+        if *status_value == StatusValue::Running {
             return Err(ErrorNetworkAnalyser::ErrorPause("Error: cannot resume if is already running".to_string()));
         }
         println!("Network analyser is resumed");
         *status_value = StatusValue::Running;
+        self.status.cvar.notify_one();
 
-        return Ok(())
+        return Ok(());
     }
 }
 
@@ -198,7 +232,7 @@ pub fn print_devices() -> usize {
     let tot = interfaces.len();
 
     for (i, inter) in interfaces.into_iter().enumerate() {
-        println!("{}:   {:?} {:?}", i, inter.name, inter.description);
+        println!("> {}:   {:?} {:?}", i, inter.name, inter.description);
     }
 
     return tot;
@@ -224,306 +258,352 @@ pub fn find_my_device_name(index: usize) -> String {
 }
 
 
-pub enum State{
-    Index,
-    Time,
-    File,
-    Filter,
-    IpSorg,
-    IpDest,
-    PortaSorg,
-    PortaDest,
-    Protocol,
-}
 
 
-fn init_sniffing() -> (NetworkInterface, usize, String, Filter) {
-    let mut state = State::Index;
-    let mut my_index = 0;
-    let mut interface = select_device_by_name(find_my_device_name(my_index));
-    let mut time_interval = 1;
-    let mut filename = String::new();
-    let mut filter = Filter::new();
+fn get_interface() -> Result<NetworkInterface, ErrorNetworkAnalyser>
+{
+    println!("> Which of the following interfaces you want to sniff?");
+    let tot_interfaces = print_devices();
 
-    //TODO: handle the closing!!!!! -> error
-    println!();
-    println!("*************************************************************");
-    println!("*************************************************************");
-    println!("*************  N E T W O R K    S N I F F E R  **************");
-    println!("*************************************************************");
-    println!("*************************************************************");
-    println!();
-    println!();
-    println!("*************************************************************");
-    println!("                      INITIALIZATION                         ");
-    println!("*************************************************************");
-    /* Define the interface to use */
+    let mut my_index_str = String::new();
 
+    loop {
+        print!(">> Select an index: [Press X to exit.]  ");
+        io::stdout().flush().expect("Error");
+        my_index_str.clear();
 
-    loop{
-        match state {
-            State::Index => {
-                println!("> Which of the following interfaces you want to sniff?");
-                let tot_interfaces = print_devices();
-                print!("> Select an index: ");
-                io::stdout().flush().expect("Error");
+        match io::stdin().read_line(&mut my_index_str) {
+            Ok(_) => {
+                let cmd = my_index_str.trim();
+                if cmd == "x" || cmd == "X"
+                {
+                    return Err(ErrorNetworkAnalyser::ErrorAbort("> [Error]: User asked to abort.".to_string()));
+                }
 
-                let mut my_index_str = String::new();
+                match cmd.parse::<usize>() {
+                    Ok(my_index) => {
+                        if my_index < tot_interfaces {
+                            let dev_name = find_my_device_name(my_index);
 
-                //read a line
-                match io::stdin().read_line(&mut my_index_str){
-                    Ok(_) => {
-                        let cmd = my_index_str.trim();
-                        match cmd.parse::<usize>() {
-                            Ok(my_index) => {
-                                if my_index < tot_interfaces {
-                                    let dev_name = find_my_device_name(my_index);
-                                    println!();
-                                    println!("> Ok, you selected:  {:?}", dev_name);
-                                    interface = select_device_by_name(dev_name);
-                                    println!("> Setting the interface in promiscous mode... "); // The promiscous mode is the default configuration (line 167 file lib.rs in pnet-datalink module)
-                                    state = State::Time;
-                                }
-                                else {
-                                    println!("> Error: please select a valid number. Try Again.");
-                                }
-                            }
-                            Err(err) => {
-                                println!("> Error: {}", err);
-                            }
+                            println!("> Ok, you selected:  {:?}", dev_name);
+                            let interface = select_device_by_name(dev_name);
+                            println!("> Setting the interface in promiscous mode... "); // The promiscous mode is the default configuration (line 167 file lib.rs in pnet-datalink module)
+                            return Ok(interface);
+                        } else {
+                            println!("> [Error]: please select a valid number. Try Again.");
                         }
                     }
                     Err(err) => {
-                        println!("> Error: {}", err);
+                        println!("> [Error]: {}", err);
                     }
                 }
             }
-            State::Time => {
-                println!("> Please, insert a time interval. [Press E to exit and start a new analysis] [by default is set to 1]");
-                println!();
-                print!("> Time interval (s): ");
-                io::stdout().flush().expect("Error");
-
-                let mut time_interval_str = String::new();
-
-                match io::stdin().read_line(&mut time_interval_str) {
-                    Ok(_) => {
-                        let cmd = time_interval_str.trim();
-                        if cmd == ""{
-                            state = State::File;
-                        }
-                        else{
-                            match cmd.parse::<usize>() {
-                                Ok(tmp) => {
-                                    state = State::File;
-                                    time_interval = tmp;
-                                }
-                                Err(err) => println!("> Error: {}", err)
-                            }
-                        }
-                    }
-                    Err(err) => println!("> Error: {}", err)
-
-                }
-            }
-            State::File => {
-                println!();
-                println!("> Please, insert the name of the file where we will save the report in \".txt\" format. By default is \"report.txt\"");
-                filename = String::new();
-                io::stdout().flush().expect("Error");
-                match io::stdin().read_line(&mut filename) {
-                    Ok(_) => {
-                        let cmd = filename.trim();
-                        if cmd == ""{
-                            state = State::Filter;
-                            filename = "report.txt".to_string();
-                        }
-                        else{
-                            let reg = Regex::new(r"^[\w,\s-]+\.txt$").unwrap();
-                            if reg.is_match(&*cmd) {
-                                filename = cmd.to_string();
-                                state = State::Filter;
-                            }
-                            else{
-                                println!("Please, write a correct filename in txt format! It must not contain :       \\ /:*?\"<>|");
-                            }
-                        }
-                    }
-                    Err(err) => {
-                        println!("Error: {}", err);
-                    }
-                }
-            }
-            State::Filter => {
-                println!("> do you want to add a filter? [Y, N]");
-                io::stdout().flush().expect("Error");
-
-                let mut filt = String::new();
-                match io::stdin().read_line(&mut filt){
-                    Ok(_) => {
-                        let cmd = filt.trim();
-                        match cmd {
-                            "Y" | "y" => state = State::IpSorg,
-                            "" | "N" | "n" => state = break,
-                            _ => println!("> Please, write a correct answer"),
-                        }
-                    }
-                    Err(err) => println!("Error: {}", err)
-                }
-            }
-            State::IpSorg => {
-                println!("> Please insert the source ip address or [X, or nothing] otherwise");
-                let mut ip_str = String::new();
-
-                match io::stdin().read_line(&mut ip_str) {
-                    Ok(_) => {
-                        ip_str = ip_str.trim().to_string();
-
-                        if ip_str == "" || ip_str == "X" || ip_str == "x"{
-                            state = State::IpDest;
-                            continue;
-                        }
-
-                        match validate_ip_address(ip_str) {
-                            Ok(addr) => {
-                                filter.set_ip_srg(addr);
-                                state = State::IpDest;
-                            }
-                            Err(err) => println!("Error: {}", err)
-                        }
-                    }
-                    Err(err) => println!("Error: {}", err)
-                }
-            }
-            State::IpDest => {
-                println!("> Please insert the destination ip address or [X, or nothing] otherwise");
-                let mut ip_str = String::new();
-
-                match io::stdin().read_line(&mut ip_str) {
-                    Ok(_) => {
-                        ip_str = ip_str.trim().to_string();
-
-                        if ip_str == "" || ip_str == "X" || ip_str == "x"{
-                            state = State::PortaSorg;
-                            continue;
-                        }
-
-                        match validate_ip_address(ip_str) {
-                            Ok(addr) => {
-                                filter.set_ip_dest(addr);
-                                state = State::PortaSorg;
-                            }
-                            Err(err) => println!("Error: {}", err)
-                        }
-                    }
-                    Err(err) => println!("Error: {}", err)
-                }
-            }
-            State::PortaSorg => {
-                println!("> Please insert the source port number or X otherwise");
-                let mut prt_str = String::new();
-                match io::stdin().read_line(&mut prt_str) {
-                    Ok(_) => {
-                        prt_str = prt_str.trim().to_string();
-
-                        if prt_str == ""|| prt_str == "X" || prt_str == "x"{
-                            state = State::PortaDest;
-                            continue;
-                        }
-
-                        match prt_str.trim().parse::<u16>(){
-                            Ok(val) => {
-                                filter.set_prt_srg(val);
-                                state = State::PortaDest;
-                            }
-                            Err(err) => {
-                                println!("Error : {}", err);
-                            }
-                        }
-                    }
-                    Err(err) => println!("Error: {}", err)
-                }
-            }
-            State::PortaDest => {
-                println!("> Please insert the destination port number or X otherwise");
-                let mut prt_str = String::new();
-                match io::stdin().read_line(&mut prt_str) {
-                    Ok(_) => {
-                        prt_str = prt_str.trim().to_string();
-
-                        if prt_str == "" || prt_str == "X" || prt_str == "x"{
-                            state = State::Protocol;
-                            continue;
-                        }
-                        match prt_str.trim().parse::<u16>(){
-                            Ok(val) => {
-                                filter.set_prt_dest(val);
-                                state = State::Protocol;
-                            }
-                            Err(err) => {
-                                println!("Error : {}", err);
-                            }
-                        }
-                    }
-                    Err(err) => println!("Error: {}", err)
-                }
-            }
-            State::Protocol => {
-                println!("> Please, choose one of the following protocols or [X or nothing] otherwise");
-                let protocols :Vec<FilteredProtocol>= all::<FilteredProtocol>().collect::<Vec<_>>();
-                for (ind, tmp) in protocols.iter().enumerate(){
-                    println!("{}: {}", ind, tmp);
-                }
-                let mut cmd = String::new();
-
-                match io::stdin().read_line(&mut cmd) {
-                    Ok(_) => {
-                        cmd = cmd.trim().to_string();
-
-                        if cmd == "" || cmd == "X" || cmd == "x" {
-                            break;
-                        }
-
-                        match cmd.parse::<usize>(){
-                            Ok(val) => {
-                                if val < protocols.len(){
-                                    let protocol = protocols[val].to_string().parse::<Protocol>();
-                                    match protocol{
-                                        Ok(p) => {
-                                            filter.set_protocol(p);
-                                            break;
-                                        }
-                                        Err(err) => {
-                                            println!("Error: {:?}", err)
-                                        }
-                                    }
-                                }
-                                else{
-                                    println!("Error, wrong number");
-                                }
-                            }
-                            Err(err) => println!("Error: {}", err)
-                        }
-                    }
-                    Err(err) => println!("Error: {}", err)
-                }
-
+            Err(err) => {
+                println!("> [Error]: {}", err);
             }
         }
     }
+}
 
-    return (interface, time_interval, filename, filter);
+fn get_time_interval(default: usize) -> Result<usize, ErrorNetworkAnalyser>
+{
+    println!("> Please, insert a time interval. [Press X to exit.] [ENTER to set keep default value of {} ]", default);
+
+    let mut time_interval_str = String::new();
+
+
+    loop {
+        print!(">> Time interval (s): ");
+        io::stdout().flush().expect("Error");
+        time_interval_str.clear();
+
+        match io::stdin().read_line(&mut time_interval_str) {
+            Ok(_) => {
+                let cmd = time_interval_str.trim();
+                if cmd == "" {
+                    return Ok(default);
+                }
+                else if cmd == "x" || cmd == "X"
+                {
+                    return Err(ErrorNetworkAnalyser::ErrorAbort("> [Error]: User asked to abort.".to_string()));
+                }
+                else {
+                    match cmd.parse::<usize>() {
+                        Ok(tmp) => {
+                            return Ok(tmp);
+                        }
+                        Err(err) => println!("> [Error]: {}", err)
+                    }
+                }
+            }
+            Err(err) => println!("> [Error]: {}", err)
+        }
+    }
+}
+
+fn get_file_name(default: &str)-> Result<String, ErrorNetworkAnalyser>
+{
+    println!("> Please, insert the name of the file where we will save the report in \".txt\" format. [Press X to exit.] [Enter to keep the default name: {}]", default);
+
+
+    let mut filename = String::new();
+
+    loop {
+        print!(">> File Name (.txt): ");
+        io::stdout().flush().expect("Error");
+        filename.clear();
+
+        match io::stdin().read_line(&mut filename) {
+            Ok(_) => {
+                let cmd = filename.trim();
+                if cmd == "" {
+                    return Ok(default.to_string());
+                }
+                else if cmd == "x" || cmd == "X"
+                {
+                    return Err(ErrorNetworkAnalyser::ErrorAbort("> [Error]: User asked to abort.".to_string()));
+                }
+                else {
+                    let reg = Regex::new(r"^[\w,\s-]+\.txt$").unwrap();
+                    if reg.is_match(&*cmd) {
+                        filename = cmd.to_string();
+                        return Ok(filename);
+                    } else {
+                        println!("> [Error] Please, write a correct filename in txt format! It must not contain :       \\ /:*?\"<>|");
+                    }
+                }
+            }
+            Err(err) => {
+                println!("> [Error]: {}", err);
+            }
+        }
+    }
+}
+
+fn get_filter()-> Result<Filter, ErrorNetworkAnalyser>
+{
+    println!("> Do you want to set a filter? [Y, N]");
+
+    let mut filt = String::new();
+    // Check if the user want the filter
+    loop {
+        print!(">> Answer: ");
+        io::stdout().flush().expect("Error");
+
+        match io::stdin().read_line(&mut filt) {
+            Ok(_) => {
+                let cmd = filt.trim();
+                match cmd {
+                    "Y" | "y" => break,
+                    "" | "N" | "n" =>  return Ok(Filter::new()),
+                    _ => println!("> [Error]: Please, write a correct answer"),
+                }
+            }
+            Err(err) => println!("> [Error]: {}", err)
+        }
+    }
+
+    let mut filter = Filter::new();
+    // Eventually set a filter on the Ip address
+
+    println!("> Filter packets FROM this source ip address: [Press ENTER to skip.] [Press X to exit.]");
+
+    let mut ip_str = String::new();
+    loop {
+        print!(">> Source Ip Address: ");
+        io::stdout().flush().expect("Error");
+        ip_str.clear();
+
+        match io::stdin().read_line(&mut ip_str) {
+            Ok(_) => {
+                ip_str = ip_str.trim().to_string();
+
+                if ip_str == ""  {
+                    break;
+                }
+                else if ip_str == "x" || ip_str == "X"
+                {
+                    return Err(ErrorNetworkAnalyser::ErrorAbort("> [Error]: User asked to abort.".to_string()));
+                }
+
+                match validate_ip_address(ip_str.clone()) {
+                    Ok(addr) => {
+                        filter.set_ip_srg(addr);
+
+                    }
+                    Err(err) => println!("Error: {}", err)
+                }
+            }
+            Err(err) => println!("Error: {}", err)
+        }
+    }
+
+    println!("> Filter packets TO this destination ip address: [Press ENTER to skip.] [Press X to exit.]");
+    let mut ip_dst = String::new();
+
+    loop {
+        print!(">> Destination Ip Address: ");
+        io::stdout().flush().expect("Error");
+        ip_dst.clear();
+        match io::stdin().read_line(&mut ip_dst) {
+            Ok(_) => {
+                ip_dst = ip_dst.trim().to_string();
+
+                if ip_dst == "" {
+                    break;
+                }
+                else if ip_dst == "x" || ip_dst== "X"
+                {
+                    return Err(ErrorNetworkAnalyser::ErrorAbort("> [Error]: User asked to abort.".to_string()));
+                }
+
+                match validate_ip_address(ip_dst.clone()) {
+                    Ok(addr) => {
+                        filter.set_ip_dest(addr);
+                        break;
+                    }
+                    Err(err) => println!("> [Error]: {}", err)
+                }
+            }
+            Err(err) => println!("> [Error]: {}", err)
+        }
+    }
+
+    println!("> Filter packets coming FROM this port: [Press ENTER to skip.] [Press X to exit.]");
+    let mut prt_str = String::new();
+
+    loop {
+        print!(">> Source Port: ");
+        io::stdout().flush().expect("Error");
+        prt_str.clear();
+
+        match io::stdin().read_line(&mut prt_str) {
+            Ok(_) => {
+                prt_str = prt_str.trim().to_string();
+
+                if prt_str == "" {
+                    break;
+                }
+                else if prt_str == "x" || prt_str == "X"
+                {
+                    return Err(ErrorNetworkAnalyser::ErrorAbort("> [Error]: User asked to abort.".to_string()));
+                }
+
+                match prt_str.trim().parse::<u16>() {
+                    Ok(val) => {
+                        filter.set_prt_srg(val);
+                        break;
+                    }
+                    Err(err) => {
+                        println!("> [Error] : {}", err);
+                    }
+                }
+            }
+            Err(err) => println!("> [Error]: {}", err)
+        }
+    }
+
+    println!("> Filter packets going TO this port: [Press ENTER to skip.] [Press X to exit.]");
+
+    let mut prt_dst = String::new();
+    loop {
+        print!(">> Destination Port: ");
+        io::stdout().flush().expect("Error");
+        prt_dst.clear();
+
+        match io::stdin().read_line(&mut prt_dst) {
+            Ok(_) => {
+                prt_dst = prt_dst.trim().to_string();
+
+                if prt_dst == "" {
+                    break;
+
+                }
+                else if prt_dst == "x" || prt_dst == "X"
+                {
+                    return Err(ErrorNetworkAnalyser::ErrorAbort("> [Error]: User asked to abort.".to_string()));
+                }
+                match prt_dst.trim().parse::<u16>() {
+                    Ok(val) => {
+                        filter.set_prt_dest(val);
+                        break;
+                    }
+                    Err(err) => {
+                        println!(">[Error] : {}", err);
+                    }
+                }
+            }
+            Err(err) => println!(">[Error] : {}", err)
+        }
+    }
+
+
+    println!("> Filter on this protocol:  [Press ENTER to skip.] [Press X to exit.]");
+    println!("> Possible protocols. Select the index: ");
+    let protocols: Vec<FilteredProtocol> = all::<FilteredProtocol>().collect::<Vec<_>>();
+    for (ind, tmp) in protocols.iter().enumerate() {
+        println!("> {}: {}", ind, tmp);
+    }
+
+    let mut cmd = String::new();
+    loop {
+        print!(">> Selected Index: ");
+        io::stdout().flush().expect("Error");
+        cmd.clear();
+
+        match io::stdin().read_line(&mut cmd) {
+            Ok(_) => {
+                cmd = cmd.trim().to_string();
+
+                if cmd == "" {
+                    break;
+                }
+                else if prt_str == "x" || prt_str == "X"
+                {
+                    return Err(ErrorNetworkAnalyser::ErrorAbort("> [Error]: User asked to abort.".to_string()));
+                }
+
+                match cmd.parse::<usize>() {
+                    Ok(val) => {
+                        if val < protocols.len() {
+                            let protocol = protocols[val].to_string().parse::<Protocol>();
+                            match protocol {
+                                Ok(p) => {
+                                    filter.set_protocol(p);
+                                    break;
+                                }
+                                Err(err) => {
+                                    println!("[Error]: {:?}", err)
+                                }
+                            }
+                        } else {
+                            println!(">[Error]: wrong number");
+                        }
+                    }
+                    Err(err) => println!(">[Error]: {}", err)
+                }
+            }
+            Err(err) => println!(">[Error]: {}", err)
+        }
+    }
+
+    return Ok(filter);
+
 }
 
 
-pub fn validate_ip_address(ip_str: String) -> Result<IpAddr, String>{
-    let vec_ip4 : Vec<&str> = ip_str.split(".").map(|x| x).collect();
-    let vec_ip6 : Vec<&str> = ip_str.split(":").map(|x| x).collect();
+
+
+
+
+pub fn validate_ip_address(ip_str: String) -> Result<IpAddr, String> {
+    let vec_ip4: Vec<&str> = ip_str.split(".").map(|x| x).collect();
+    let vec_ip6: Vec<&str> = ip_str.split(":").map(|x| x).collect();
     let mut error = String::new();
     if vec_ip4.len() == 4 {
         let mut correct = true;
-        let mut tmp : Vec<u8> = vec![0; 4];
-        for i in 0..4{
+        let mut tmp: Vec<u8> = vec![0; 4];
+        for i in 0..4 {
             match vec_ip4[i].parse::<u8>() {
                 Ok(val) => {
                     tmp[i] = val;
@@ -537,12 +617,11 @@ pub fn validate_ip_address(ip_str: String) -> Result<IpAddr, String>{
         if correct {
             return Ok(IpAddr::V4(Ipv4Addr::new(tmp[0], tmp[1], tmp[2], tmp[3])));
         }
-    }
-    else if vec_ip6.len() == 8 {
+    } else if vec_ip6.len() == 8 {
         let mut correct = true;
-        let mut tmp : Vec<u16> = vec![0; 8];
-        for i in 0..8{
-            match vec_ip6[i].parse::<u16>(){
+        let mut tmp: Vec<u16> = vec![0; 8];
+        for i in 0..8 {
+            match vec_ip6[i].parse::<u16>() {
                 Ok(val) => {
                     tmp[i] = val;
                 }

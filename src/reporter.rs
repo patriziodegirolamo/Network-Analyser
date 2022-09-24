@@ -9,7 +9,7 @@ use std::time::Duration;
 use crate::packet_handle::{ConversationKey, ConversationStats, PacketInfo};
 use crate::{Status, StatusValue};
 
-pub struct Reporter{
+pub struct Reporter {
     filename: String,
     time_interval: usize,
     status_sniffing: Arc<Status>,
@@ -17,37 +17,42 @@ pub struct Reporter{
     status_writing: Arc<Mutex<bool>>,
 
     //receiver channel to receive packet_infos from the sniffer
-    receiver_channel: Receiver<PacketInfo>
+    receiver_channel: Receiver<PacketInfo>,
 }
 
-impl Reporter{
+impl Reporter {
     pub fn new(filename: String,
                time_interval: usize,
                status_sniffing: Arc<Status>,
-               receiver_channel: Receiver<PacketInfo>
-    ) -> Self{
-        Self{
+               receiver_channel: Receiver<PacketInfo>,
+    ) -> Self {
+        Self {
             filename,
             time_interval,
             status_sniffing,
             convs_summaries: HashMap::new(),
             status_writing: Arc::new(Mutex::new(false)),
-            receiver_channel
+            receiver_channel,
         }
     }
 
-    pub fn reporting(&mut self){
+    pub fn reporting(&mut self) {
+        let mut status = StatusValue::Exit;
         loop {
             {
-                let status_sniffing_value = self.status_sniffing.mutex.read().unwrap();
+                let mut status_sniffing_value = self.status_sniffing.mutex.lock().unwrap();
                 match *status_sniffing_value {
                     StatusValue::Running => {
-                        println!("Reporter is running")
+                        if status != StatusValue::Running
+                        {
+                            println!("Reporter is running");
+                            status = StatusValue::Running;
+                        }
                     }
                     StatusValue::Paused => {
                         println!("Reporter is paused");
-
-                        //self.status_sniffing.cvar.wait_while(self.status_sniffing.mutex., is_paused(*status_sniffing_value)).unwrap()
+                        status = StatusValue::Paused;
+                        status_sniffing_value = self.status_sniffing.cvar.wait_while(status_sniffing_value, |s| is_paused(&*s)).unwrap();
                     }
                     StatusValue::Exit => {
                         println!("Reporter exit");
@@ -55,7 +60,7 @@ impl Reporter{
                     }
                 }
             }
-            thread::sleep(Duration::from_secs(2));
+            thread::sleep(Duration::from_millis(3000));
         }
     }
 }
@@ -87,7 +92,6 @@ fn write_summaries(file: &mut File, convs_summaries: HashMap<ConversationKey, Co
 
 
     for (key, elem) in &convs_summaries {
-
         table.add_row(Row::new(vec![
             Cell::new(&*key.get_ip_srg().to_string()), // s  : String -> *s : str (via Deref<Target=str>) -> &*s: &str
             Cell::new(&*key.get_prt_srg().to_string()),
@@ -104,10 +108,10 @@ fn write_summaries(file: &mut File, convs_summaries: HashMap<ConversationKey, Co
     table.print(file).expect("Error");
 }
 
-fn is_paused(state: StatusValue) -> bool{
+fn is_paused(state: &StatusValue) -> bool {
     return match state {
         StatusValue::Running => false,
         StatusValue::Paused => true,
         StatusValue::Exit => false
-    }
+    };
 }
