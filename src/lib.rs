@@ -42,7 +42,7 @@ impl Display for ErrorNetworkAnalyser {
 
 impl Error for ErrorNetworkAnalyser {}
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Copy, Clone)]
 enum StatusValue {
     Running,
     Paused,
@@ -103,7 +103,6 @@ impl NetworkAnalyser {
     }
 
     pub fn init(&mut self) -> Result<(), ErrorNetworkAnalyser> {
-        //TODO: gestire errore di init_sniffing
 
         println!();
         println!("*************************************************************");
@@ -152,8 +151,6 @@ impl NetworkAnalyser {
             reporter.reporting();
         }));
 
-
-        println!("*******************************************************");
         println!("**** SNIFFING... ");
 
         return Ok(());

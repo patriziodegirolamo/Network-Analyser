@@ -1,3 +1,4 @@
+use std::ops::Deref;
 use std::sync::{Arc, MutexGuard};
 use std::sync::mpsc::Sender;
 use pnet_datalink::DataLinkReceiver;
@@ -26,6 +27,7 @@ impl Sniffer {
         loop {
             {
                 let status_value = self.status.mutex.lock().unwrap();
+                status = *status_value;
                 match *status_value {
                     StatusValue::Running => {
                         if *status_value != status

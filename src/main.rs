@@ -1,33 +1,40 @@
 extern crate core;
 
 use std::io;
-use traffic_analyser::NetworkAnalyser;
+use std::io::Write;
+use traffic_analyser::{ErrorNetworkAnalyser, NetworkAnalyser};
 
 fn main() {
 
     let mut na = NetworkAnalyser::new(); // Network Analyser with default values
 
-    let mut res = na.init(); // Customize parameters
-
-    if res.is_err(){
-        println!("{}", err);
-        return;
+    match na.init() // Customize parameters
+    {
+        Ok(_) => {}
+        Err(e) => {
+            println!("{}", e);
+            return;}
     }
 
-    res= na.start();
-
-    if res.is_err(){
-        println!("{}", err);
-        return;
+    match na.start() // Start the process
+    {
+        Ok(_) => {}
+        Err(e) => {
+            println!("{}", e);
+            return;}
     }
 
+
+    // Handle user commands
     let mut cmd = String::new();
     loop {
+        print!(">> Command: [P to pause] [R to resume] [X to exit]  ");
+        io::stdout().flush().expect("Error");
         cmd.clear();
+
         if io::stdin().read_line(&mut cmd).is_ok() {
             match cmd.trim() {
                 "P" | "p" => na.pause().unwrap_or_else(|err| println!("{}", err) ),
-
                 "X" | "x" => na.quit().unwrap_or_else(|err| println!("{}", err) ),
                 "R" | "r" => na.resume().unwrap_or_else(|err| println!("{}", err) ),
                 _ => println!("> [Error]: Unknown command")
@@ -36,4 +43,5 @@ fn main() {
             println!("> [Error]: Please Try again");
         }
     }
+
 }

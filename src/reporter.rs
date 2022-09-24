@@ -41,6 +41,7 @@ impl Reporter {
         loop {
             {
                 let mut status_sniffing_value = self.status_sniffing.mutex.lock().unwrap();
+
                 match *status_sniffing_value {
                     StatusValue::Running => {
                         if status != StatusValue::Running
