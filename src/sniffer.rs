@@ -25,9 +25,15 @@ impl Sniffer {
     pub fn sniffing(&mut self) {
         let mut status = StatusValue::Exit;
         loop {
-            {
-                let status_value = self.status.mutex.lock().unwrap();
-                status = *status_value;
+                {
+                    let status_value = self.status.mutex.lock().unwrap();
+                    status = *status_value;
+                }
+                if status == StatusValue::Exit {
+                    println!("Sniffer exit");
+                    return;
+                }
+
                 match *status_value {
                     StatusValue::Running => {
                         if *status_value != status
@@ -48,7 +54,7 @@ impl Sniffer {
                         return;
                     }
                 }
-            }
+
             thread::sleep(Duration::from_millis(10));
         }
     }

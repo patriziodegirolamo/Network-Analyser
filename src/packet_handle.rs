@@ -82,6 +82,7 @@ impl Display for Protocol {
 /* -------- Packet info structure ---------*/
 #[derive(Debug)]
 pub struct PacketInfo {
+
     ip_sorg: Option<IpAddr>,
     ip_dest: Option<IpAddr>,
     prt_sorg: u16,
@@ -110,6 +111,7 @@ impl PacketInfo {
     /*
     Getter methods
      */
+
     pub fn get_dim(&self) -> usize {
         return self.dim;
     }
