@@ -124,13 +124,6 @@ impl NetworkAnalyser {
         println!("*************************************************************");
         println!();
 
-        /*let (interface, time_interval, filename, filter) = init_sniffing();
-
-        self.interface = interface;
-        self.time_interval = time_interval;
-        self.filename = filename;
-        self.filter = filter;
-        */
         return Ok(());
     }
 
