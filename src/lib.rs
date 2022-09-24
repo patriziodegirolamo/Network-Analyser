@@ -159,7 +159,7 @@ impl NetworkAnalyser {
             reporter.reporting();
         }));
 
-        println!();
+
         println!("*******************************************************");
         println!("**** SNIFFING... ");
 
