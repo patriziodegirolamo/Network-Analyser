@@ -9,10 +9,11 @@ use std::io;
 use std::io::Write;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::sync::{Arc, Condvar, Mutex, RwLock};
-use std::sync::mpsc::channel;
+use std::sync::mpsc::{channel, RecvTimeoutError, Sender};
 use packet_handle::{Filter};
 use pnet_datalink::{Channel, NetworkInterface};
 use std::thread::{self, JoinHandle};
+use std::time::Duration;
 use enum_iterator::all;
 use regex::Regex;
 use crate::packet_handle::{FilteredProtocol, Protocol};
@@ -72,6 +73,9 @@ pub struct NetworkAnalyser {
     sniffer_handle: Option<JoinHandle<()>>,
     reporter_handle: Option<JoinHandle<()>>,
     status: Arc<Status>,
+    timer_channel: Option<Sender<()>>,
+    status_writing: Arc<Mutex<bool>>,
+    timer_handle: Option<JoinHandle<()>>
 }
 
 impl Display for NetworkAnalyser {
@@ -99,6 +103,9 @@ impl NetworkAnalyser {
             sniffer_handle: None,
             reporter_handle: None,
             status: Arc::new(Status::new()),
+            timer_channel: None,
+            status_writing: Arc::new(Mutex::new(false)),
+            timer_handle: None
         };
     }
 
@@ -145,13 +152,37 @@ impl NetworkAnalyser {
         }));
 
 
+        let (snd_timer, rcv_timer) = channel();
+
+        //thread timer
+        let time_interval = self.time_interval.clone();
+        let status_writing = self.status_writing.clone();
+
+        self.timer_channel = Some(snd_timer.clone());
+        self.timer_handle = Some(thread::spawn(move || {
+            loop {
+                match rcv_timer.recv_timeout(Duration::from_secs(time_interval as u64)) {
+                    Ok(_) => {
+                        break;
+                    },
+                    Err(err) => {
+                        if err == RecvTimeoutError::Timeout {
+                            let mut status_writing_value = status_writing.lock().unwrap();
+                            *status_writing_value = true;
+                        }
+                    }
+                }
+            }
+        }));
+
         //thread reporter
         let status_reporter = self.status.clone();
         let filename = self.filename.clone();
         let time_interval = self.time_interval.clone();
+        let status_writing = self.status_writing.clone();
 
         self.reporter_handle = Some(thread::spawn(move || {
-            let mut reporter = Reporter::new(filename, time_interval, status_reporter, rcv_sniffer);
+            let mut reporter = Reporter::new(filename, time_interval, status_reporter, rcv_sniffer, snd_timer, status_writing);
             reporter.reporting();
         }));
 
@@ -185,6 +216,7 @@ impl NetworkAnalyser {
             // Set exit status
             *status_value = StatusValue::Exit;
             println!("**** QUITTING...");
+            //self.timer_channel = None;
         }
 
         if let Some(sniffer_handle) = self.sniffer_handle.take() {
@@ -195,6 +227,12 @@ impl NetworkAnalyser {
 
         if let Some(reporter_handle) = self.reporter_handle.take() {
             reporter_handle.join().unwrap();
+        } else {
+            return Err(ErrorNetworkAnalyser::ErrorQuit("Error: cannot quit if you don't start".to_string()));
+        }
+
+        if let Some(timer_handle) = self.timer_handle.take() {
+            timer_handle.join().unwrap();
         } else {
             return Err(ErrorNetworkAnalyser::ErrorQuit("Error: cannot quit if you don't start".to_string()));
         }

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io;
 use std::sync::{Arc, Mutex};
-use std::sync::mpsc::Receiver;
+use std::sync::mpsc::{Receiver, Sender};
 use prettytable::{Cell, Row, Table};
 use std::thread;
 use std::time::Duration;
@@ -14,10 +14,10 @@ pub struct Reporter {
     time_interval: usize,
     status_sniffing: Arc<Status>,
     convs_summaries: HashMap<ConversationKey, ConversationStats>,
-    status_writing: Arc<Mutex<bool>>,
-
     //receiver channel to receive packet_infos from the sniffer
     receiver_channel: Receiver<PacketInfo>,
+    sender_timer: Sender<()>,
+    status_writing: Arc<Mutex<bool>>
 }
 
 impl Reporter {
@@ -25,14 +25,17 @@ impl Reporter {
                time_interval: usize,
                status_sniffing: Arc<Status>,
                receiver_channel: Receiver<PacketInfo>,
+               sender_timer: Sender<()>,
+               status_writing: Arc<Mutex<bool>>,
     ) -> Self {
         Self {
             filename,
             time_interval,
             status_sniffing,
             convs_summaries: HashMap::new(),
-            status_writing: Arc::new(Mutex::new(false)),
             receiver_channel,
+            sender_timer,
+            status_writing
         }
     }
 
@@ -58,12 +61,10 @@ impl Reporter {
                         status_sniffing_value = self.status_sniffing.cvar.wait_while(status_sniffing_value, |s| is_paused(&*s)).unwrap();
 
                         println!("              after paused!");
-                        //Temporaneo
-                        let mut status_writing_value = self.status_writing.lock().unwrap();
-                        *status_writing_value = true;
                     }
                     StatusValue::Exit => {
                         println!("Reporter exit");
+                        self.sender_timer.send(()).unwrap();
                         return;
                     }
                 }
