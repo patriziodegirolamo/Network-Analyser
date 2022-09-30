@@ -13,7 +13,7 @@ use std::sync::mpsc::{channel, RecvTimeoutError, Sender};
 use packet_handle::{Filter};
 use pnet_datalink::{Channel, NetworkInterface};
 use std::thread::{self, JoinHandle};
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 use enum_iterator::all;
 use regex::Regex;
 use crate::packet_handle::{FilteredProtocol, Protocol};
@@ -181,8 +181,10 @@ impl NetworkAnalyser {
         let time_interval = self.time_interval.clone();
         let status_writing = self.status_writing.clone();
 
+        let time = SystemTime::now();
+
         self.reporter_handle = Some(thread::spawn(move || {
-            let mut reporter = Reporter::new(filename, time_interval, status_reporter, rcv_sniffer, snd_timer, status_writing);
+            let mut reporter = Reporter::new(filename, time_interval, status_reporter, rcv_sniffer, snd_timer, status_writing, time);
             reporter.reporting();
         }));
 

@@ -69,11 +69,6 @@ impl Sniffer {
                 }
                 Err(e) => println!("packetdump: unable to receive packet: {}", e),      //TODO: GESTIRE ERRORE
             }
-
-
-
-
-            //thread::sleep(Duration::from_millis(10));
         }
     }
 }
