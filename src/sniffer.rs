@@ -48,7 +48,7 @@ impl Sniffer {
                             // Packet arrival time
                             let initial_time = SystemTime::elapsed(&self.time).expect("TIME ERROR");
 
-                            println!("packet arrived at: {}.{} secs", initial_time.as_secs(), initial_time.as_millis());
+                            //println!("packet arrived at: {}.{} secs", initial_time.as_secs(), initial_time.as_millis());
                             // Create a data structure to host the information got from the packet
                             let mut new_packet_info = PacketInfo::new();
 

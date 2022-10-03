@@ -11,7 +11,7 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 use std::sync::mpsc::{channel, RecvTimeoutError, Sender};
 use packet_handle::{Filter};
-use pnet_datalink::{Channel, NetworkInterface};
+use pnet_datalink::{Channel, Config, NetworkInterface};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, SystemTime};
 use enum_iterator::all;
@@ -134,7 +134,12 @@ impl NetworkAnalyser {
     }
 
     pub fn start(&mut self) -> Result<(), ErrorNetworkAnalyser> {
-        let (_, mut rcv_interface) = match pnet_datalink::channel(&self.interface, pnet_datalink::Config::default()) {
+        let mut conf = Config::default();
+        conf.read_buffer_size = 1000000;
+        conf.write_buffer_size = 1000000;
+        println!("{:?}", conf);
+
+        let (_, mut rcv_interface) = match pnet_datalink::channel(&self.interface, conf) {
             Ok(Channel::Ethernet(tx, rx)) => (tx, rx),
             Ok(_) => return Err(ErrorNetworkAnalyser::ErrorNa("Error: unhandled channel type".to_string())),
             Err(e) => return Err(ErrorNetworkAnalyser::ErrorNa("unable to create channel".to_owned() + &e.to_string())),
