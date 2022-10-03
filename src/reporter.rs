@@ -49,6 +49,7 @@ impl Reporter {
         //TODO: spostare la open nello start e gestire errore
         let mut file = open_file(&self.filename).unwrap();
         let mut write_header = true;
+        let mut n_packets = 0;
         loop {
 
             {
@@ -79,7 +80,7 @@ impl Reporter {
                         status_sniffing_value = self.status_sniffing.cvar.wait_while(status_sniffing_value, |s| is_paused(&*s)).unwrap();
                     }
                     StatusValue::Exit => {
-                        println!("Reporter exit");
+                        println!("Reporter exit, TOT Packets: {}", n_packets);
                         self.sender_timer.send(()).unwrap();
                         return;
                     }
@@ -88,7 +89,7 @@ impl Reporter {
             //SE E' ARRIVATO QUI, LO STATUS E' RUNNING
 
             while let Ok(new_packet_info) = self.receiver_channel.try_recv(){
-
+                n_packets += 1;
                 if new_packet_info.get_printed(){
                     // Create the key of the packet considering (ip_sorg, ip_dest, port_sorg, port_dest, prot)
                     let key = ConversationKey::new_key(new_packet_info.get_ip_sorgente().unwrap(),
@@ -150,13 +151,18 @@ fn write_summaries(file: &mut File, convs_summaries: &HashMap<ConversationKey, C
             Cell::new("Prt_dest").style_spec("b"),
             Cell::new("Protocol").style_spec("b"),
             Cell::new("Tot_bytes").style_spec("b"),
-            Cell::new("starting_time (nano_s)").style_spec("b"),
-            Cell::new("ending_time (nano_s)").style_spec("b"),
+            Cell::new("starting_time").style_spec("b"),
+            Cell::new("ending_time").style_spec("b"),
         ]));
     }
 
     if !convs_summaries.is_empty(){
         for (key, elem) in convs_summaries {
+            let start = elem.get_starting_time().unwrap();
+            let end = elem.get_ending_time().unwrap();
+            let start_format = format!("{}.{} secs", start.as_secs(), start.as_millis());
+            let end_format = format!("{}.{} secs", end.as_secs(), end.as_millis());
+
             table.add_row(Row::new(vec![
                 Cell::new(&*secs_str),
                 Cell::new(&*key.get_ip_srg().to_string()), // s  : String -> *s : str (via Deref<Target=str>) -> &*s: &str
@@ -165,14 +171,13 @@ fn write_summaries(file: &mut File, convs_summaries: &HashMap<ConversationKey, C
                 Cell::new(&*key.get_prt_dest().to_string()),
                 Cell::new(&*key.get_protocol().to_string()),
                 Cell::new(&*elem.get_tot_bytes().to_string()),
-                Cell::new(&*elem.get_starting_time().unwrap().as_nanos().to_string()),
-                Cell::new(&*elem.get_ending_time().unwrap().as_nanos().to_string()),
+                Cell::new(&*start_format),
+                Cell::new(&*end_format),
             ]));
         }
+        table.print(file).expect("Error");
     }
 
-    // Print the table on file
-    table.print(file).expect("Error");
 }
 
 fn is_paused(state: &StatusValue) -> bool {

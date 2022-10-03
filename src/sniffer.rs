@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::net::{IpAddr, Ipv4Addr};
 use std::ops::Deref;
 use std::sync::{Arc, MutexGuard};
@@ -29,6 +30,10 @@ impl Sniffer {
 
     pub fn sniffing(&mut self) {
         let mut status = StatusValue::Exit;
+
+        //TODO: serve per fare un controllo sui tempi di arrivo tra i pacchetti in arrivo dall'interfaccia lvl2 e quelli scritti sul report e controllare che nessun pacchetto si sia perso! Dopodiche si puo eliminare!
+        let mut buffer_packets = vec![];
+
         loop {
 
             match self.receiver_channel.next() {
@@ -43,7 +48,7 @@ impl Sniffer {
                             // Packet arrival time
                             let initial_time = SystemTime::elapsed(&self.time).expect("TIME ERROR");
 
-                            //println!("packet arrived at: {}", initial_time.as_secs() + 1);
+                            println!("packet arrived at: {}.{} secs", initial_time.as_secs(), initial_time.as_millis());
                             // Create a data structure to host the information got from the packet
                             let mut new_packet_info = PacketInfo::new();
 
@@ -55,14 +60,16 @@ impl Sniffer {
                             if !packet_handle::handle_particular_interfaces(&self.interface, packet, &mut new_packet_info, &self.filter) {
                                 packet_handle::handle_ethernet_frame(&EthernetPacket::new(packet).unwrap(), &mut new_packet_info, &self.filter);
                             }
-
+                            buffer_packets.push(new_packet_info.clone());
                             self.sender_channel.send(new_packet_info).unwrap();
                         }
                         StatusValue::Paused => {
                             continue;
                         }
                         StatusValue::Exit => {
-                            println!("Sniffer exit");
+                            println!("Sniffer exit, TOT Packets: {}", buffer_packets.len());
+                            let protocols : HashSet<Protocol> = buffer_packets.into_iter().map(|p| p.get_protocol()).collect();
+                            println!("protocols: {:?}", protocols);
                             return;
                         }
                     }

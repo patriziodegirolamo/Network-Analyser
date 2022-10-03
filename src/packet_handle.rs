@@ -81,7 +81,7 @@ impl Display for Protocol {
 }
 
 /* -------- Packet info structure ---------*/
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PacketInfo {
 
     ip_sorg: Option<IpAddr>,
@@ -342,17 +342,29 @@ fn handle_dns_packet(packet: &[u8], new_packet_info: &mut PacketInfo, filter: &F
     }
 }
 
-fn handle_tls_packet(packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) -> bool {
-    return if tls_parser::parse_tls_plaintext(packet).is_ok() || tls_parser::parse_tls_encrypted(packet).is_ok() {
-        PacketInfo::set_protocol(new_packet_info, Protocol::Tls);
+fn handle_tls_packet(packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) {
 
-        if filter.protocol != Protocol::None && filter.protocol != Protocol::Tls {
-            new_packet_info.set_not_printed();
-        }
-        true
-    } else {
-        false
-    };
+    match  tls_parser::parse_tls_plaintext(packet) {
+        Ok(tls_packet) => {
+            PacketInfo::set_protocol(new_packet_info, Protocol::Tls);
+            //println!("TLS plaintext {:?}", tls_packet.1);
+            if filter.protocol != Protocol::None && filter.protocol != Protocol::Tls {
+                new_packet_info.set_not_printed();
+            }
+        },
+        Err(_) => {}
+    }
+
+    match  tls_parser::parse_tls_encrypted(packet) {
+        Ok(tls_packet) => {
+            PacketInfo::set_protocol(new_packet_info, Protocol::Tls);
+            //println!("TLS encrypted {:?}", tls_packet.1);
+            if filter.protocol != Protocol::None && filter.protocol != Protocol::Tls {
+                new_packet_info.set_not_printed();
+            }
+        },
+        Err(_) => {}
+    }
 }
 
 fn handle_udp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) {
@@ -377,8 +389,9 @@ fn handle_udp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_pac
         PacketInfo::set_porta_destinazione(new_packet_info, prt_dest);
         PacketInfo::set_protocol(new_packet_info, Protocol::Udp);
 
-        //prova a vedere se è dns
         handle_dns_packet(udp.payload(), new_packet_info, filter);
+        //handle_tls_packet(udp.payload(), new_packet_info, filter);
+
     } else {
         println!("Malformed UDP Packet");
     }
@@ -444,8 +457,8 @@ fn handle_tcp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_pac
         PacketInfo::set_porta_sorgente(new_packet_info, prt_srg);
         PacketInfo::set_porta_destinazione(new_packet_info, prt_dest);
         PacketInfo::set_protocol(new_packet_info, Protocol::Tcp);
-        // Check if the protocol carried is TLS
-
+        // Check if the protocol carried is TLS or DNS
+        handle_tls_packet(tcp.payload(), new_packet_info, filter);
         handle_dns_packet(tcp.payload(), new_packet_info, filter);
     } else {
         println!("Malformed TCP Packet");
