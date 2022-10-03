@@ -140,14 +140,17 @@ impl NetworkAnalyser {
             Err(e) => return Err(ErrorNetworkAnalyser::ErrorNa("unable to create channel".to_owned() + &e.to_string())),
         };
 
+        let time = SystemTime::now();
+
         //thread sniffer
         let (snd_sniffer, rcv_sniffer) = channel();
         let status_sniffer = self.status.clone();
         let interface = self.interface.clone();
         let filter = self.filter.clone();
+        let time_sniffer = time.clone();
 
         self.sniffer_handle = Some(thread::spawn(move || {
-            let mut sniffer = Sniffer::new(interface, filter,snd_sniffer, rcv_interface, status_sniffer);
+            let mut sniffer = Sniffer::new(interface, filter,snd_sniffer, rcv_interface, status_sniffer, time_sniffer);
             sniffer.sniffing();
         }));
 
@@ -180,11 +183,10 @@ impl NetworkAnalyser {
         let filename = self.filename.clone();
         let time_interval = self.time_interval.clone();
         let status_writing = self.status_writing.clone();
-
-        let time = SystemTime::now();
+        let time_reporter = time.clone();
 
         self.reporter_handle = Some(thread::spawn(move || {
-            let mut reporter = Reporter::new(filename, time_interval, status_reporter, rcv_sniffer, snd_timer, status_writing, time);
+            let mut reporter = Reporter::new(filename, time_interval, status_reporter, rcv_sniffer, snd_timer, status_writing, time_reporter);
             reporter.reporting();
         }));
 
@@ -465,6 +467,7 @@ fn get_filter()-> Result<Filter, ErrorNetworkAnalyser>
                 match validate_ip_address(ip_str.clone()) {
                     Ok(addr) => {
                         filter.set_ip_srg(addr);
+                        break;
 
                     }
                     Err(err) => println!("Error: {}", err)

@@ -19,16 +19,16 @@ pub struct Sniffer {
     receiver_channel: Box<dyn DataLinkReceiver>,
 
     status: Arc<Status>,
+    time: SystemTime,
 }
 
 impl Sniffer {
-    pub fn new(interface: NetworkInterface, filter: Filter, sender_channel: Sender<PacketInfo>, receiver_channel: Box<dyn DataLinkReceiver>, status: Arc<Status>) -> Self {
-        Self { interface, filter, sender_channel, receiver_channel, status }
+    pub fn new(interface: NetworkInterface, filter: Filter, sender_channel: Sender<PacketInfo>, receiver_channel: Box<dyn DataLinkReceiver>, status: Arc<Status>, time: SystemTime) -> Self {
+        Self { interface, filter, sender_channel, receiver_channel, status, time }
     }
 
     pub fn sniffing(&mut self) {
         let mut status = StatusValue::Exit;
-        let time_0 = SystemTime::now();
         loop {
 
             match self.receiver_channel.next() {
@@ -41,13 +41,14 @@ impl Sniffer {
                     match status {
                         StatusValue::Running => {
                             // Packet arrival time
-                            let intial_time = SystemTime::now().duration_since(time_0).expect("TIME ERROR");
+                            let initial_time = SystemTime::elapsed(&self.time).expect("TIME ERROR");
 
+                            //println!("packet arrived at: {}", initial_time.as_secs() + 1);
                             // Create a data structure to host the information got from the packet
                             let mut new_packet_info = PacketInfo::new();
 
                             // Set arrival packet time
-                            PacketInfo::set_time(&mut new_packet_info, intial_time);
+                            PacketInfo::set_time(&mut new_packet_info, initial_time);
 
                             // se è un caso particolare, faccio l'handle con il pacchetto modificato a dovere
                             //altrimenti faccio l'handle normale

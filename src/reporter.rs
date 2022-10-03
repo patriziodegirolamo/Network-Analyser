@@ -48,6 +48,7 @@ impl Reporter {
 
         //TODO: spostare la open nello start e gestire errore
         let mut file = open_file(&self.filename).unwrap();
+        let mut write_header = true;
         loop {
 
             {
@@ -56,8 +57,8 @@ impl Reporter {
                     println!("Scrivo su report!");
                     *status_writing_value = false;
                     //simple_write(&self, &mut file);
-                    //todo: LA PRIMA VOLTA SCRIVE A VUOTO!
-                    write_summaries(&mut file, &self.convs_summaries, &self.initial_time);
+                    write_summaries(&mut file, &self.convs_summaries, &self.initial_time, write_header);
+                    write_header = false;
                     self.convs_summaries.clear();
                 }
             }
@@ -130,42 +131,44 @@ fn simple_write(reporter: &Reporter, file: &mut File){
     ]));
     table.print(file).unwrap();
 }
-fn write_summaries(file: &mut File, convs_summaries: &HashMap<ConversationKey, ConversationStats>, time: &SystemTime) {
-
-    // Create the table
+fn write_summaries(file: &mut File, convs_summaries: &HashMap<ConversationKey, ConversationStats>, time: &SystemTime, write_header: bool) {
     let mut table = Table::new();
 
     let secs : u64 = time.elapsed().unwrap().as_secs();
     let secs_str : String = secs.to_string();
 
-    table.add_row(Row::new(vec![
-        Cell::new("Time").style_spec("b"),
-        Cell::new(&*secs_str)
-    ]));
-
-    table.add_row(Row::new(vec![
-        Cell::new("Ip_srg").style_spec("b"),
-        Cell::new("Prt_srg").style_spec("b"),
-        Cell::new("Ip_dest").style_spec("b"),
-        Cell::new("Prt_dest").style_spec("b"),
-        Cell::new("Protocol").style_spec("b"),
-        Cell::new("Tot_bytes").style_spec("b"),
-        Cell::new("starting_time (nano_s)").style_spec("b"),
-        Cell::new("ending_time (nano_s)").style_spec("b"),
-    ]));
-
-
-    for (key, elem) in convs_summaries {
-        table.add_row(Row::new(vec![
-            Cell::new(&*key.get_ip_srg().to_string()), // s  : String -> *s : str (via Deref<Target=str>) -> &*s: &str
-            Cell::new(&*key.get_prt_srg().to_string()),
-            Cell::new(&*key.get_ip_dest().to_string()),
-            Cell::new(&*key.get_prt_dest().to_string()),
-            Cell::new(&*key.get_protocol().to_string()),
-            Cell::new(&*elem.get_tot_bytes().to_string()),
-            Cell::new(&*elem.get_starting_time().unwrap().as_nanos().to_string()),
-            Cell::new(&*elem.get_ending_time().unwrap().as_nanos().to_string()),
+    if write_header {
+        table.set_titles(Row::new(vec![
+            Cell::new("NEW REPORT").style_spec("bc")
         ]));
+
+        table.add_row(Row::new(vec![
+            Cell::new("Time").style_spec("b"),
+            Cell::new("Ip_srg").style_spec("b"),
+            Cell::new("Prt_srg").style_spec("b"),
+            Cell::new("Ip_dest").style_spec("b"),
+            Cell::new("Prt_dest").style_spec("b"),
+            Cell::new("Protocol").style_spec("b"),
+            Cell::new("Tot_bytes").style_spec("b"),
+            Cell::new("starting_time (nano_s)").style_spec("b"),
+            Cell::new("ending_time (nano_s)").style_spec("b"),
+        ]));
+    }
+
+    if !convs_summaries.is_empty(){
+        for (key, elem) in convs_summaries {
+            table.add_row(Row::new(vec![
+                Cell::new(&*secs_str),
+                Cell::new(&*key.get_ip_srg().to_string()), // s  : String -> *s : str (via Deref<Target=str>) -> &*s: &str
+                Cell::new(&*key.get_prt_srg().to_string()),
+                Cell::new(&*key.get_ip_dest().to_string()),
+                Cell::new(&*key.get_prt_dest().to_string()),
+                Cell::new(&*key.get_protocol().to_string()),
+                Cell::new(&*elem.get_tot_bytes().to_string()),
+                Cell::new(&*elem.get_starting_time().unwrap().as_nanos().to_string()),
+                Cell::new(&*elem.get_ending_time().unwrap().as_nanos().to_string()),
+            ]));
+        }
     }
 
     // Print the table on file

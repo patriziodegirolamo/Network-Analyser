@@ -327,25 +327,18 @@ impl Filter {
 */
 
 fn handle_dns_packet(packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) {
-    if dns_parser::Packet::parse(packet).is_ok() {
-        PacketInfo::set_protocol(new_packet_info, Protocol::Dns);
+    match dns_parser::Packet::parse(packet) {
+        Ok(dns_packet) => {
+            PacketInfo::set_protocol(new_packet_info, Protocol::Dns);
+            if filter.protocol != Protocol::None && filter.protocol != Protocol::Dns {
+                new_packet_info.set_not_printed();
+            }
 
-        if filter.protocol != Protocol::None && filter.protocol != Protocol::Dns {
-            new_packet_info.set_not_printed();
+            let questions = dns_packet.questions.iter().map(|q| { q.qname.to_string() }).collect::<Vec<String>>();
+            //TODO: inserire le questions nel file di report
+            //println!("{:?}", questions);
         }
-
-        if new_packet_info.printed {
-            /*
-            println!(
-                "DNS Packet: {}:{} > {}:{}",
-                new_packet_info.ip_sorg.unwrap(),
-                new_packet_info.prt_sorg,
-                new_packet_info.ip_dest.unwrap(),
-                new_packet_info.prt_dest,
-            );
-
-             */
-        }
+        Err(_) => {}
     }
 }
 
@@ -355,19 +348,6 @@ fn handle_tls_packet(packet: &[u8], new_packet_info: &mut PacketInfo, filter: &F
 
         if filter.protocol != Protocol::None && filter.protocol != Protocol::Tls {
             new_packet_info.set_not_printed();
-        }
-
-        if new_packet_info.printed {
-            /*
-            println!(
-                "TLS Packet: {}:{} > {}:{}",
-                new_packet_info.ip_sorg.unwrap(),
-                new_packet_info.prt_sorg,
-                new_packet_info.ip_dest.unwrap(),
-                new_packet_info.prt_dest,
-            );
-
-             */
         }
         true
     } else {
@@ -396,23 +376,9 @@ fn handle_udp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_pac
         PacketInfo::set_porta_sorgente(new_packet_info, prt_srg);
         PacketInfo::set_porta_destinazione(new_packet_info, prt_dest);
         PacketInfo::set_protocol(new_packet_info, Protocol::Udp);
-        if prt_srg == 53 || prt_dest == 53 {
-            handle_dns_packet(udp.payload(), new_packet_info, filter);
-        } else if new_packet_info.printed {
-            if filter.protocol == Protocol::None || filter.protocol == Protocol::Udp {
-                /*
-                println!(
-                    "UDP Packet: {}:{} > {}:{}; length: {}",
-                    source,
-                    prt_srg,
-                    destination,
-                    prt_dest,
-                    udp.get_length()
-                );
 
-                 */
-            }
-        }
+        //prova a vedere se è dns
+        handle_dns_packet(udp.payload(), new_packet_info, filter);
     } else {
         println!("Malformed UDP Packet");
     }
@@ -431,40 +397,12 @@ fn handle_icmp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_pa
             match icmp_packet.get_icmp_type() {
                 IcmpTypes::EchoReply => {
                     let echo_reply_packet = echo_reply::EchoReplyPacket::new(packet).unwrap();
-                    /*
-                    println!(
-                        "ICMP echo reply {} -> {} (seq={:?}, id={:?})",
-                        source,
-                        destination,
-                        echo_reply_packet.get_sequence_number(),
-                        echo_reply_packet.get_identifier()
-                    );
-
-                     */
                 }
                 IcmpTypes::EchoRequest => {
                     let echo_request_packet = echo_request::EchoRequestPacket::new(packet).unwrap();
-                    /*
-                    println!(
-                        "ICMP echo request {} -> {} (seq={:?}, id={:?})",
-                        source,
-                        destination,
-                        echo_request_packet.get_sequence_number(),
-                        echo_request_packet.get_identifier()
-                    );
-
-                     */
                 }
                 _ => {
-                    /*
-                    println!(
-                    "ICMP packet {} -> {} (type={:?})",
-                    source,
-                    destination,
-                    icmp_packet.get_icmp_type()
-                )
 
-                     */
                 },
             }
         } else {}
@@ -481,16 +419,6 @@ fn handle_icmpv6_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_
         PacketInfo::set_protocol(new_packet_info, Protocol::IcmpV6);
         if filter.protocol != Protocol::IcmpV6 || filter.protocol != Protocol::IcmpV6 {
             new_packet_info.set_not_printed();
-        } else if new_packet_info.printed {
-            /*
-            println!(
-                "ICMPv6 packet {} -> {} (type={:?})",
-                source,
-                destination,
-                icmpv6_packet.get_icmpv6_type()
-            )
-
-             */
         }
     } else {
         println!("Malformed ICMPv6 Packet");
@@ -518,23 +446,7 @@ fn handle_tcp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_pac
         PacketInfo::set_protocol(new_packet_info, Protocol::Tcp);
         // Check if the protocol carried is TLS
 
-        if prt_srg == 53 || prt_dest == 53 {
-            handle_dns_packet(tcp.payload(), new_packet_info, filter);
-        } else if handle_tls_packet(tcp.payload(), new_packet_info, filter) {} else if new_packet_info.printed {
-            if filter.protocol == Protocol::None || filter.protocol == Protocol::Tcp {
-                /*
-                println!(
-                    "TCP Packet: {}:{} > {}:{}; length: {}",
-                    source,
-                    prt_srg,
-                    destination,
-                    prt_dest,
-                    packet.len()
-                );
-
-                 */
-            }
-        }
+        handle_dns_packet(tcp.payload(), new_packet_info, filter);
     } else {
         println!("Malformed TCP Packet");
     }
@@ -581,22 +493,6 @@ fn handle_transport_protocol(source: IpAddr, destination: IpAddr, protocol: IpNe
             println!("IP over IP")
         }
         _ => {
-            /*
-            if filter.protocol == Protocol::None {
-                println!(
-                    "Unknown {} packet: {} > {}; protocol: {:?} length: {}",
-                    match source {
-                        IpAddr::V4(..) => "IPv4",
-                        _ => "IPv6",
-                    },
-                    source,
-                    destination,
-                    protocol,
-                    packet.len()
-                )
-            }
-
-             */
         }
     }
 }
@@ -694,17 +590,6 @@ fn handle_arp_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInfo
         PacketInfo::set_protocol(new_packet_info, Protocol::Arp);
 
         if new_packet_info.printed {
-            /*
-            println!(
-                "ARP packet: {}({}) > {}({}); operation: {:?}",
-                ethernet.get_source(),
-                header.get_sender_proto_addr(),
-                ethernet.get_destination(),
-                header.get_target_proto_addr(),
-                header.get_operation(),
-            );
-
-             */
         }
     } else {
         println!("Malformed ARP Packet");
@@ -722,16 +607,7 @@ pub fn handle_ethernet_frame(ethernet: &EthernetPacket, new_packet_info: &mut Pa
         EtherTypes::Arp => handle_arp_packet(ethernet, new_packet_info, filter),
         _ => {
             if filter.protocol == Protocol::None {
-                /*
-                println!(
-                    "Unknown packet: {} > {}; ethertype: {:?} length: {}",
-                    ethernet.get_source(),
-                    ethernet.get_destination(),
-                    ethernet.get_ethertype(),
-                    ethernet.packet().len()
-                )
 
-                 */
             }
         }
     }
