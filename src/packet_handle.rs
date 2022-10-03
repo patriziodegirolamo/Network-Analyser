@@ -390,8 +390,6 @@ fn handle_udp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_pac
         PacketInfo::set_protocol(new_packet_info, Protocol::Udp);
 
         handle_dns_packet(udp.payload(), new_packet_info, filter);
-        //handle_tls_packet(udp.payload(), new_packet_info, filter);
-
     } else {
         println!("Malformed UDP Packet");
     }
@@ -502,10 +500,17 @@ fn handle_transport_protocol(source: IpAddr, destination: IpAddr, protocol: IpNe
             }
             handle_icmpv6_packet(source, destination, packet, new_packet_info, filter);
         }
-        IpNextHeaderProtocols::Ipv4 => {
-            println!("IP over IP")
+        IpNextHeaderProtocols::Pipe => {
+            //IP over IP
+            //TODO: handle filter PIPE
+            println!("PIPE");
+        }
+        IpNextHeaderProtocols::Igmp => {
+            //TODO: handle filter IGMP
+            println!("IGMP");
         }
         _ => {
+            println!("Unknown transport level protocol {}!", protocol);
         }
     }
 }
@@ -619,6 +624,7 @@ pub fn handle_ethernet_frame(ethernet: &EthernetPacket, new_packet_info: &mut Pa
         EtherTypes::Ipv6 => handle_ipv6_packet(ethernet, new_packet_info, filter),
         EtherTypes::Arp => handle_arp_packet(ethernet, new_packet_info, filter),
         _ => {
+            println!("unknown lvl 3 protocol");
             if filter.protocol == Protocol::None {
 
             }
