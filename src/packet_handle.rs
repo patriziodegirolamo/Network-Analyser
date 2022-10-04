@@ -90,7 +90,6 @@ pub struct PacketInfo {
     prt_dest: u16,
     protocol: Protocol,
     dim: usize,
-    //TODO: ok dimensione?
     arrival_time: Option<Duration>,
     printed: bool,
 }
@@ -193,6 +192,8 @@ impl ConversationStats {
             tot_bytes,
             starting_time: Some(start),
             ending_time: Some(end),
+            //TODO: add number of packets exchanged
+            //TODO: add Application Information
         };
     }
 
@@ -336,7 +337,7 @@ fn handle_dns_packet(packet: &[u8], new_packet_info: &mut PacketInfo, filter: &F
 
             let questions = dns_packet.questions.iter().map(|q| { q.qname.to_string() }).collect::<Vec<String>>();
             //TODO: inserire le questions nel file di report
-            //println!("{:?}", questions);
+            println!("DNS questions: {:?}", questions);
         }
         Err(_) => {}
     }

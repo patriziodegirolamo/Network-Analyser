@@ -31,7 +31,7 @@ impl Sniffer {
     pub fn sniffing(&mut self) {
         let mut status = StatusValue::Exit;
 
-        //TODO: serve per fare un controllo sui tempi di arrivo tra i pacchetti in arrivo dall'interfaccia lvl2 e quelli scritti sul report e controllare che nessun pacchetto si sia perso! Dopodiche si puo eliminare!
+        //TODO: serve per un check visivo dei pacchetti. Non è effettivamente utile!
         let mut buffer_packets = vec![];
 
         loop {
@@ -75,7 +75,7 @@ impl Sniffer {
                     }
 
                 }
-                Err(e) => println!("packetdump: unable to receive packet: {}", e),      //TODO: GESTIRE ERRORE
+                Err(e) => println!("packetdump: unable to receive packet: {}", e),      //TODO: GESTIRE ERRORE (settare status ad exit e ritornare)
             }
         }
     }

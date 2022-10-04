@@ -52,6 +52,7 @@ impl Reporter {
         let mut n_packets = 0;
         loop {
 
+            if !self.convs_summaries.is_empty() // If there are conversation to write
             {
                 let mut status_writing_value = self.status_writing.lock().unwrap();
                 if *status_writing_value == true {
@@ -80,8 +81,14 @@ impl Reporter {
                         status_sniffing_value = self.status_sniffing.cvar.wait_while(status_sniffing_value, |s| is_paused(&*s)).unwrap();
                     }
                     StatusValue::Exit => {
+                        if !self.convs_summaries.is_empty() {// Before exit update the report one last time
+                            println!("Scrivo su report!");
+                            write_summaries(&mut file, &self.convs_summaries, &self.initial_time, write_header);
+                        }
                         println!("Reporter exit, TOT Packets: {}", n_packets);
+                        // Alert the timer thread
                         self.sender_timer.send(()).unwrap();
+
                         return;
                     }
                 }
@@ -132,6 +139,8 @@ fn simple_write(reporter: &Reporter, file: &mut File){
     ]));
     table.print(file).unwrap();
 }
+
+//TODO: handle the format!
 fn write_summaries(file: &mut File, convs_summaries: &HashMap<ConversationKey, ConversationStats>, time: &SystemTime, write_header: bool) {
     let mut table = Table::new();
 
@@ -162,7 +171,7 @@ fn write_summaries(file: &mut File, convs_summaries: &HashMap<ConversationKey, C
             let end = elem.get_ending_time().unwrap();
             let start_format = format!("{}.{} secs", start.as_secs(), start.as_millis());
             let end_format = format!("{}.{} secs", end.as_secs(), end.as_millis());
-
+            //TODO: gestire porta nulla (zero) e ip (None)
             table.add_row(Row::new(vec![
                 Cell::new(&*secs_str),
                 Cell::new(&*key.get_ip_srg().to_string()), // s  : String -> *s : str (via Deref<Target=str>) -> &*s: &str
