@@ -2,13 +2,15 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io;
 use std::io::Write;
+use std::net::IpAddr;
+use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{Receiver, Sender};
 use prettytable::{Cell, Row, Table};
 use std::thread;
 use std::time::{Duration, SystemTime};
 use crate::packet_handle::{ConversationKey, ConversationStats, PacketInfo};
-use crate::{Status, StatusValue};
+use crate::{Protocol, Status, StatusValue};
 
 pub struct Reporter {
     filename: String,
@@ -60,7 +62,7 @@ impl Reporter {
                     *status_writing_value = false;
                     //simple_write(&self, &mut file);
                     write_summaries(&mut file, &self.convs_summaries, &self.initial_time, write_header);
-                    write_header = false;
+                    //write_header = false;
                     self.convs_summaries.clear();
                 }
             }
@@ -166,6 +168,36 @@ fn write_summaries(file: &mut File, convs_summaries: &HashMap<ConversationKey, C
     }
 
     if !convs_summaries.is_empty(){
+
+        // Creo un vettore in cui inserisco le conversazioni come tupla (Key, Stats)
+        let mut sorted_conv: Vec<(ConversationKey, ConversationStats)> = Vec::new();
+        for(key, elem) in convs_summaries {
+            sorted_conv.push((*key, *elem));
+        }
+        // ordino per starting_time
+        sorted_conv.sort_by(|a,b|
+            a.1.get_starting_time().cmp(&b.1.get_starting_time()));
+
+        for conv in sorted_conv {
+            let start = conv.1.get_starting_time().unwrap();
+            let end = conv.1.get_ending_time().unwrap();
+            let start_format = format!("{}.{} secs", start.as_secs(), start.as_millis());
+            let end_format = format!("{}.{} secs", end.as_secs(), end.as_millis());
+            //TODO: gestire porta nulla (zero) e ip (None)
+            table.add_row(Row::new(vec![
+                Cell::new(&*secs_str),
+                Cell::new(&*conv.0.get_ip_srg().to_string()), // s  : String -> *s : str (via Deref<Target=str>) -> &*s: &str
+                Cell::new(&*conv.0.get_prt_srg().to_string()),
+                Cell::new(&*conv.0.get_ip_dest().to_string()),
+                Cell::new(&*conv.0.get_prt_dest().to_string()),
+                Cell::new(&*conv.0.get_protocol().to_string()),
+                Cell::new(&*conv.1.get_tot_bytes().to_string()),
+                Cell::new(&*start_format),
+                Cell::new(&*end_format),
+            ]));
+        }
+
+        /*
         for (key, elem) in convs_summaries {
             let start = elem.get_starting_time().unwrap();
             let end = elem.get_ending_time().unwrap();
@@ -184,6 +216,8 @@ fn write_summaries(file: &mut File, convs_summaries: &HashMap<ConversationKey, C
                 Cell::new(&*end_format),
             ]));
         }
+
+         */
         table.print(file).expect("Error");
     }
 

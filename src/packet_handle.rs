@@ -178,7 +178,7 @@ impl PacketInfo {
 }
 
 /* -------- Conversation Stats struct ---------*/
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct ConversationStats {
     tot_bytes: usize,
     starting_time: Option<Duration>,
@@ -215,7 +215,7 @@ impl ConversationStats {
 }
 
 /* -------- Conversation Key struct ---------*/
-#[derive(Debug, Eq, Hash, PartialEq)]
+#[derive(Debug, Eq, Hash, PartialEq, Copy, Clone)]
 pub struct ConversationKey {
     ip_srg: IpAddr,
     ip_dest: IpAddr,
