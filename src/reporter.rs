@@ -184,40 +184,37 @@ fn write_summaries(file: &mut File, convs_summaries: &HashMap<ConversationKey, C
             let start_format = format!("{}.{} secs", start.as_secs(), start.as_millis());
             let end_format = format!("{}.{} secs", end.as_secs(), end.as_millis());
             //TODO: gestire porta nulla (zero) e ip (None)
+
+            // handle default values => replace with "-"
+            let prt_src;
+            let normalized_prt_src = match conv.0.get_prt_srg() {
+                0 => "-",
+                _ => {
+                    prt_src = conv.0.get_prt_srg().to_string();
+                    &prt_src
+                }
+            };
+            let prt_dst;
+            let normalized_prt_dst = match conv.0.get_prt_dest() {
+                0 => "-",
+                _ => {
+                    prt_dst = conv.0.get_prt_dest().to_string();
+                    &prt_dst
+                }
+            };
+
             table.add_row(Row::new(vec![
                 Cell::new(&*secs_str),
                 Cell::new(&*conv.0.get_ip_srg().to_string()), // s  : String -> *s : str (via Deref<Target=str>) -> &*s: &str
-                Cell::new(&*conv.0.get_prt_srg().to_string()),
+                Cell::new(normalized_prt_src),
                 Cell::new(&*conv.0.get_ip_dest().to_string()),
-                Cell::new(&*conv.0.get_prt_dest().to_string()),
+                Cell::new(normalized_prt_dst),
                 Cell::new(&*conv.0.get_protocol().to_string()),
                 Cell::new(&*conv.1.get_tot_bytes().to_string()),
                 Cell::new(&*start_format),
                 Cell::new(&*end_format),
             ]));
         }
-
-        /*
-        for (key, elem) in convs_summaries {
-            let start = elem.get_starting_time().unwrap();
-            let end = elem.get_ending_time().unwrap();
-            let start_format = format!("{}.{} secs", start.as_secs(), start.as_millis());
-            let end_format = format!("{}.{} secs", end.as_secs(), end.as_millis());
-            //TODO: gestire porta nulla (zero) e ip (None)
-            table.add_row(Row::new(vec![
-                Cell::new(&*secs_str),
-                Cell::new(&*key.get_ip_srg().to_string()), // s  : String -> *s : str (via Deref<Target=str>) -> &*s: &str
-                Cell::new(&*key.get_prt_srg().to_string()),
-                Cell::new(&*key.get_ip_dest().to_string()),
-                Cell::new(&*key.get_prt_dest().to_string()),
-                Cell::new(&*key.get_protocol().to_string()),
-                Cell::new(&*elem.get_tot_bytes().to_string()),
-                Cell::new(&*start_format),
-                Cell::new(&*end_format),
-            ]));
-        }
-
-         */
         table.print(file).expect("Error");
     }
 
