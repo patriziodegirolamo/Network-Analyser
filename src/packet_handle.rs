@@ -183,15 +183,17 @@ pub struct ConversationStats {
     tot_bytes: usize,
     starting_time: Option<Duration>,
     ending_time: Option<Duration>,
+    tot_packets: usize,
 }
 
 impl ConversationStats {
 
-    pub fn new(tot_bytes: usize, start: Duration, end: Duration) -> Self {
+    pub fn new(tot_bytes: usize, start: Duration, end: Duration, tot_packets: usize) -> Self {
         return ConversationStats {
             tot_bytes,
             starting_time: Some(start),
             ending_time: Some(end),
+            tot_packets,
             //TODO: add number of packets exchanged
             //TODO: add Application Information
         };
@@ -200,6 +202,7 @@ impl ConversationStats {
     pub fn get_starting_time(&self) -> Option<Duration> {return self.starting_time}
     pub fn get_ending_time(&self) -> Option<Duration> {return  self.ending_time}
     pub fn get_tot_bytes(&self) -> usize {return self.tot_bytes}
+    pub fn get_tot_packets(&self) -> usize {return self.tot_packets}
 
     pub fn set_starting_time(&mut self, start: Duration) {
         self.starting_time = Some(start);
@@ -211,6 +214,10 @@ impl ConversationStats {
 
     pub fn set_tot_bytes(&mut self, to_add: usize) {
         self.tot_bytes += to_add;
+    }
+
+    pub fn set_tot_packets(&mut self, to_add: usize) {
+        self.tot_packets += to_add;
     }
 }
 
@@ -337,7 +344,7 @@ fn handle_dns_packet(packet: &[u8], new_packet_info: &mut PacketInfo, filter: &F
 
             let questions = dns_packet.questions.iter().map(|q| { q.qname.to_string() }).collect::<Vec<String>>();
             //TODO: inserire le questions nel file di report
-            println!("DNS questions: {:?}", questions);
+            //println!("DNS questions: {:?}", questions);
         }
         Err(_) => {}
     }

@@ -67,6 +67,7 @@ impl Sniffer {
                             continue;
                         }
                         StatusValue::Exit => {
+                            // Counts also not printed packets
                             println!("Sniffer exit, TOT Packets: {}", buffer_packets.len());
                             let protocols : HashSet<Protocol> = buffer_packets.into_iter().map(|p| p.get_protocol()).collect();
                             println!("protocols: {:?}", protocols);

@@ -98,8 +98,9 @@ impl Reporter {
             //SE E' ARRIVATO QUI, LO STATUS E' RUNNING
 
             while let Ok(new_packet_info) = self.receiver_channel.try_recv(){
-                n_packets += 1;
+                //n_packets += 1;
                 if new_packet_info.get_printed(){
+                    n_packets += 1;
                     // Create the key of the packet considering (ip_sorg, ip_dest, port_sorg, port_dest, prot)
                     let key = ConversationKey::new_key(new_packet_info.get_ip_sorgente().unwrap(),
                                                        new_packet_info.get_ip_destinazione().unwrap(),
@@ -111,11 +112,13 @@ impl Reporter {
                         .and_modify(|entry| {
                             entry.set_tot_bytes(new_packet_info.get_dim());
                             entry.set_ending_time(new_packet_info.get_time().unwrap());
+                            entry.set_tot_packets(1);
                         })
                         .or_insert(ConversationStats::new(
                             new_packet_info.get_dim(),
                             new_packet_info.get_time().unwrap(),
-                            new_packet_info.get_time().unwrap()));
+                            new_packet_info.get_time().unwrap(),
+                        1));
                 }
             }
         }
@@ -162,8 +165,9 @@ fn write_summaries(file: &mut File, convs_summaries: &HashMap<ConversationKey, C
             Cell::new("Prt_dest").style_spec("b"),
             Cell::new("Protocol").style_spec("b"),
             Cell::new("Tot_bytes").style_spec("b"),
-            Cell::new("starting_time").style_spec("b"),
-            Cell::new("ending_time").style_spec("b"),
+            Cell::new("Starting_time").style_spec("b"),
+            Cell::new("Ending_time").style_spec("b"),
+            Cell::new("Tot_packets").style_spec("b"),
         ]));
     }
 
@@ -213,6 +217,7 @@ fn write_summaries(file: &mut File, convs_summaries: &HashMap<ConversationKey, C
                 Cell::new(&*conv.1.get_tot_bytes().to_string()),
                 Cell::new(&*start_format),
                 Cell::new(&*end_format),
+                Cell::new(&*conv.1.get_tot_packets().to_string()),
             ]));
         }
         table.print(file).expect("Error");
