@@ -69,6 +69,7 @@ pub struct NetworkAnalyser {
     interface: NetworkInterface,
     time_interval: usize,
     filename: String,
+    final_filename: String,
     filter: Filter,
     sniffer_handle: Option<JoinHandle<()>>,
     reporter_handle: Option<JoinHandle<()>>,
@@ -84,7 +85,9 @@ impl Display for NetworkAnalyser {
                    >> Interface: {}; \n\
                    >> Time Interval: {} secs; \n\
                    >> Filename: '{}'; \n\
-                   >> Filter: {};\n", self.interface.name, self.time_interval, self.filename, self.filter)
+                   >> Final Filename: '{}'; \n\
+                   >> Filter: {};\n", self.interface.name, self.time_interval,
+                                      self.filename, self.final_filename, self.filter)
     }
 }
 
@@ -93,12 +96,14 @@ impl NetworkAnalyser {
         let dft_interface = select_device_by_name(find_my_device_name(0));
         let dft_time_interval = 5;
         let dft_filename = "report.txt".to_string();
+        let dft_final_filename = "final_report.txt".to_string();
         let dft_filter = Filter::new();
 
         return Self {
             interface: dft_interface,
             time_interval: dft_time_interval,
             filename: dft_filename,
+            final_filename: dft_final_filename,
             filter: dft_filter,
             sniffer_handle: None,
             reporter_handle: None,
@@ -186,12 +191,21 @@ impl NetworkAnalyser {
         //thread reporter
         let status_reporter = self.status.clone();
         let filename = self.filename.clone();
+        let final_filename = self.final_filename.clone();
         let time_interval = self.time_interval.clone();
         let status_writing = self.status_writing.clone();
         let time_reporter = time.clone();
 
         self.reporter_handle = Some(thread::spawn(move || {
-            let mut reporter = Reporter::new(filename, time_interval, status_reporter, rcv_sniffer, snd_timer, status_writing, time_reporter);
+            let mut reporter = Reporter::new(
+                filename,
+                final_filename,
+                time_interval,
+                status_reporter,
+                rcv_sniffer,
+                snd_timer,
+                status_writing,
+                time_reporter);
             reporter.reporting();
         }));
 
