@@ -16,7 +16,7 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, SystemTime};
 use enum_iterator::all;
 use regex::Regex;
-use crate::packet_handle::{FilteredProtocol, Protocol};
+use crate::packet_handle::{Protocol};
 use crate::reporter::Reporter;
 use crate::sniffer::Sniffer;
 
@@ -442,6 +442,7 @@ fn get_filter()-> Result<Filter, ErrorNetworkAnalyser>
     println!("> Do you want to set a filter? [Y, N]");
 
     let mut filt = String::new();
+    let mut filter = Filter::new();
     // Check if the user want the filter
     loop {
         print!(">> Answer: ");
@@ -452,7 +453,7 @@ fn get_filter()-> Result<Filter, ErrorNetworkAnalyser>
                 let cmd = filt.trim();
                 match cmd {
                     "Y" | "y" => break,
-                    "" | "N" | "n" =>  return Ok(Filter::new()),
+                    "" | "N" | "n" =>  return Ok(filter),
                     _ => println!("> [Error]: Please, write a correct answer"),
                 }
             }
@@ -460,7 +461,6 @@ fn get_filter()-> Result<Filter, ErrorNetworkAnalyser>
         }
     }
 
-    let mut filter = Filter::new();
     // Eventually set a filter on the Ip address
 
     println!("> Filter packets FROM this source ip address: [Press ENTER to skip.] [Press X to exit.]");
@@ -598,9 +598,9 @@ fn get_filter()-> Result<Filter, ErrorNetworkAnalyser>
 
     println!("> Filter on this protocol:  [Press ENTER to skip.] [Press X to exit.]");
     println!("> Possible protocols. Select the index: ");
-    let protocols: Vec<FilteredProtocol> = all::<FilteredProtocol>().collect::<Vec<_>>();
+    let protocols: Vec<Protocol> = all::<Protocol>().collect::<Vec<_>>();
     for (ind, tmp) in protocols.iter().enumerate() {
-        println!("> {}: {}", ind, tmp);
+        if *tmp != Protocol::None { println!("> {}: {}", ind, tmp); }
     }
 
     let mut cmd = String::new();
@@ -623,17 +623,9 @@ fn get_filter()-> Result<Filter, ErrorNetworkAnalyser>
 
                 match cmd.parse::<usize>() {
                     Ok(val) => {
-                        if val < protocols.len() {
-                            let protocol = protocols[val].to_string().parse::<Protocol>();
-                            match protocol {
-                                Ok(p) => {
-                                    filter.set_protocol(p);
-                                    break;
-                                }
-                                Err(err) => {
-                                    println!("[Error]: {:?}", err)
-                                }
-                            }
+                        if val < protocols.len() - 1 {
+                            filter.set_protocol(protocols[val]);
+                            break;
                         } else {
                             println!(">[Error]: wrong number");
                         }

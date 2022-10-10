@@ -26,9 +26,9 @@ use pcap::Error;
 use pnet_datalink::{MacAddr, NetworkInterface};
 
 /* -------- Protocol enum ---------*/
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[derive(Sequence, Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum Protocol {
-    Ethernet,
+    Ethernet = 0,
     Arp,
     IpV4,
     IpV6,
@@ -38,7 +38,7 @@ pub enum Protocol {
     IcmpV6,
     Dns,
     Tls,
-    None,
+    None
 }
 
 impl FromStr for Protocol {
@@ -254,31 +254,6 @@ impl ConversationKey {
     pub fn get_protocol(&self) -> Protocol{ return self.protocol}
 }
 
-#[derive(Sequence)]
-pub enum FilteredProtocol {
-    Dns = 0,
-    Tls,
-    Tcp,
-    Udp,
-    IcmpV4,
-    IcmpV6,
-    Arp
-}
-
-impl Display for FilteredProtocol {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match *self {
-            FilteredProtocol::Dns => write!(f, "Dns"),
-            FilteredProtocol::Tls => write!(f, "Tls"),
-            FilteredProtocol::Tcp => write!(f, "Tcp"),
-            FilteredProtocol::Udp => write!(f, "Udp"),
-            FilteredProtocol::IcmpV4 => write!(f, "IcmpV4"),
-            FilteredProtocol::IcmpV6 => write!(f, "IcmpV6"),
-            FilteredProtocol::Arp => write!(f, "Arp"),
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct Filter {
     ip_srg: Option<IpAddr>,
@@ -291,14 +266,33 @@ pub struct Filter {
 impl Display for Filter {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         // TODO: mettere delle stampe migliori se è none l'option! (Non valore di default)
-        let ip_def = IpAddr::V4(Ipv4Addr::new(1,1,1,1));
-        let prt_def = 0;
+        let mut ip_src = match self.ip_srg {
+            Some(ip) => ip.to_string(),
+            _ => "Any".to_string()
+        };
+        //let ip_def = IpAddr::V4(Ipv4Addr::new(1,1,1,1));
+        //let prt_def = 0;
         write!(f, "[ IP source: {}; IP dest: {}, Port source: {}, Port dest: {}, Protocol: {} ]",
-               self.ip_srg.unwrap_or_else(|| ip_def),
-               self.ip_dest.unwrap_or_else(|| ip_def),
-               self.prt_srg.unwrap_or_else(|| prt_def),
-               self.prt_dest.unwrap_or_else(|| prt_def),
-               self.protocol)
+               match self.ip_srg {
+                   Some(ip) => ip.to_string(),
+                   _ => "Any".to_string()
+                },
+               match self.ip_dest {
+                    Some(ip) => ip.to_string(),
+                    _ => "Any".to_string()
+                },
+               match self.prt_srg {
+                   Some(p) => p.to_string(),
+                   _ => "Any".to_string()
+                },
+               match self.prt_dest {
+                   Some(p) => p.to_string(),
+                   _ => "Any".to_string()
+               },
+               match self.protocol {
+                   Protocol::None => "Any".to_string(),
+                   p => p.to_string()
+               })
     }
 }
 

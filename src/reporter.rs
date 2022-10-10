@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io;
 use std::io::Write;
 use std::net::IpAddr;
-use std::ops::Deref;
+use std::ops::{Deref, Div};
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{Receiver, Sender};
 use prettytable::{Cell, Row, Table};
@@ -96,7 +96,7 @@ impl Reporter {
                     println!("Scrivo su report!");
                     *status_writing_value = false;
                     //simple_write(&self, &mut file);
-                    write_summaries(&mut file, &self.convs_summaries, &self.initial_time, write_header);
+                    write_summaries(&mut file, &self.convs_summaries, &self.initial_time, &self.time_interval);
                     //write_header = false;
 
                     // Before clearing convs_summeries updates convs_final to produce final report
@@ -123,7 +123,7 @@ impl Reporter {
                     StatusValue::Exit => {
                         if !self.convs_summaries.is_empty() {// Before exit update the report one last time and produces final report
                             println!("Scrivo su report!");
-                            write_summaries(&mut file, &self.convs_summaries, &self.initial_time, write_header);
+                            write_summaries(&mut file, &self.convs_summaries, &self.initial_time, &self.time_interval);
                         }
                         println!("Reporter exit, TOT Packets: {}", n_packets);
                         // Alert the timer thread
@@ -205,82 +205,79 @@ fn simple_write(reporter: &Reporter, file: &mut File){
 }
 
 //TODO: handle the format!
-fn write_summaries(file: &mut File, convs_summaries: &HashMap<ConversationKey, ConversationStats>, time: &SystemTime, write_header: bool) {
+fn write_summaries(file: &mut File, convs_summaries: &HashMap<ConversationKey, ConversationStats>, time: &SystemTime, time_interval: &usize) {
     let mut table = Table::new();
 
-    let secs : u64 = time.elapsed().unwrap().as_secs();
+    // Retrieves closest value of time interval since time elapsed
+    let secs : u64 = time.elapsed().unwrap().as_secs()
+        .div_euclid(*time_interval as u64)*(*time_interval as u64);
     let secs_str : String = secs.to_string();
 
-    if write_header {
-        table.set_titles(Row::new(vec![
-            Cell::new("NEW REPORT").style_spec("bc")
-        ]));
+    table.set_titles(Row::new(vec![
+        Cell::new("NEW REPORT").style_spec("bc")
+    ]));
+
+    table.add_row(Row::new(vec![
+        Cell::new("Time").style_spec("b"),
+        Cell::new("Ip_srg").style_spec("b"),
+        Cell::new("Prt_srg").style_spec("b"),
+        Cell::new("Ip_dest").style_spec("b"),
+        Cell::new("Prt_dest").style_spec("b"),
+        Cell::new("Protocol").style_spec("b"),
+        Cell::new("Tot_bytes").style_spec("b"),
+        Cell::new("Starting_time").style_spec("b"),
+        Cell::new("Ending_time").style_spec("b"),
+        Cell::new("Tot_packets").style_spec("b"),
+    ]));
+
+    // Creo un vettore in cui inserisco le conversazioni come tupla (Key, Stats)
+    let mut sorted_conv: Vec<(ConversationKey, ConversationStats)> = Vec::new();
+    for(key, elem) in convs_summaries {
+        sorted_conv.push((*key, *elem));
+    }
+    // ordino per starting_time
+    sorted_conv.sort_by(|a,b|
+        a.1.get_starting_time().cmp(&b.1.get_starting_time()));
+
+    for conv in sorted_conv {
+        let start = conv.1.get_starting_time().unwrap();
+        let end = conv.1.get_ending_time().unwrap();
+        let start_format = format!("{}.{} secs", start.as_secs(), start.as_millis());
+        let end_format = format!("{}.{} secs", end.as_secs(), end.as_millis());
+        //TODO: gestire porta nulla (zero) e ip (None)
+
+        // handle default values => replace with "-"
+        let prt_src;
+        let normalized_prt_src = match conv.0.get_prt_srg() {
+            0 => "-",
+            _ => {
+                prt_src = conv.0.get_prt_srg().to_string();
+                &prt_src
+            }
+        };
+        let prt_dst;
+        let normalized_prt_dst = match conv.0.get_prt_dest() {
+            0 => "-",
+            _ => {
+                prt_dst = conv.0.get_prt_dest().to_string();
+                &prt_dst
+            }
+        };
 
         table.add_row(Row::new(vec![
-            Cell::new("Time").style_spec("b"),
-            Cell::new("Ip_srg").style_spec("b"),
-            Cell::new("Prt_srg").style_spec("b"),
-            Cell::new("Ip_dest").style_spec("b"),
-            Cell::new("Prt_dest").style_spec("b"),
-            Cell::new("Protocol").style_spec("b"),
-            Cell::new("Tot_bytes").style_spec("b"),
-            Cell::new("Starting_time").style_spec("b"),
-            Cell::new("Ending_time").style_spec("b"),
-            Cell::new("Tot_packets").style_spec("b"),
+            Cell::new(&*secs_str),
+            Cell::new(&*conv.0.get_ip_srg().to_string()), // s  : String -> *s : str (via Deref<Target=str>) -> &*s: &str
+            Cell::new(normalized_prt_src),
+            Cell::new(&*conv.0.get_ip_dest().to_string()),
+            Cell::new(normalized_prt_dst),
+            Cell::new(&*conv.0.get_protocol().to_string()),
+            Cell::new(&*conv.1.get_tot_bytes().to_string()),
+            Cell::new(&*start_format),
+            Cell::new(&*end_format),
+            Cell::new(&*conv.1.get_tot_packets().to_string()),
         ]));
     }
-
-    if !convs_summaries.is_empty(){
-
-        // Creo un vettore in cui inserisco le conversazioni come tupla (Key, Stats)
-        let mut sorted_conv: Vec<(ConversationKey, ConversationStats)> = Vec::new();
-        for(key, elem) in convs_summaries {
-            sorted_conv.push((*key, *elem));
-        }
-        // ordino per starting_time
-        sorted_conv.sort_by(|a,b|
-            a.1.get_starting_time().cmp(&b.1.get_starting_time()));
-
-        for conv in sorted_conv {
-            let start = conv.1.get_starting_time().unwrap();
-            let end = conv.1.get_ending_time().unwrap();
-            let start_format = format!("{}.{} secs", start.as_secs(), start.as_millis());
-            let end_format = format!("{}.{} secs", end.as_secs(), end.as_millis());
-            //TODO: gestire porta nulla (zero) e ip (None)
-
-            // handle default values => replace with "-"
-            let prt_src;
-            let normalized_prt_src = match conv.0.get_prt_srg() {
-                0 => "-",
-                _ => {
-                    prt_src = conv.0.get_prt_srg().to_string();
-                    &prt_src
-                }
-            };
-            let prt_dst;
-            let normalized_prt_dst = match conv.0.get_prt_dest() {
-                0 => "-",
-                _ => {
-                    prt_dst = conv.0.get_prt_dest().to_string();
-                    &prt_dst
-                }
-            };
-
-            table.add_row(Row::new(vec![
-                Cell::new(&*secs_str),
-                Cell::new(&*conv.0.get_ip_srg().to_string()), // s  : String -> *s : str (via Deref<Target=str>) -> &*s: &str
-                Cell::new(normalized_prt_src),
-                Cell::new(&*conv.0.get_ip_dest().to_string()),
-                Cell::new(normalized_prt_dst),
-                Cell::new(&*conv.0.get_protocol().to_string()),
-                Cell::new(&*conv.1.get_tot_bytes().to_string()),
-                Cell::new(&*start_format),
-                Cell::new(&*end_format),
-                Cell::new(&*conv.1.get_tot_packets().to_string()),
-            ]));
-        }
-        table.print(file).expect("Error");
-    }
+    table.print(file).expect("Error");
 
 }
 
