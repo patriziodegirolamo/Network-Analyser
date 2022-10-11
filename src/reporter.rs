@@ -10,7 +10,7 @@ use prettytable::{Cell, Row, Table};
 use std::thread;
 use std::time::{Duration, SystemTime};
 use crate::packet_handle::{ConversationKey, ConversationStats, PacketInfo};
-use crate::{Protocol, Status, StatusValue};
+use crate::{Filter, Protocol, Status, StatusValue};
 
 pub struct Reporter {
     filename: String,
@@ -23,7 +23,8 @@ pub struct Reporter {
     receiver_channel: Receiver<PacketInfo>,
     sender_timer: Sender<()>,
     status_writing: Arc<Mutex<bool>>,
-    initial_time: SystemTime
+    initial_time: SystemTime,
+    filter: Filter,
 }
 
 impl Reporter {
@@ -35,6 +36,7 @@ impl Reporter {
                sender_timer: Sender<()>,
                status_writing: Arc<Mutex<bool>>,
                initial_time: SystemTime,
+               filter: Filter,
     ) -> Self {
         Self {
             filename,
@@ -46,46 +48,16 @@ impl Reporter {
             receiver_channel,
             sender_timer,
             status_writing,
-            initial_time
+            initial_time,
+            filter
         }
     }
-
-/*    // Updates collection of all conversations to write in final report
-    fn update_convs_final(&mut self, convs_summaries: &HashMap<ConversationKey, ConversationStats>) {
-
-        if !self.convs_summaries.is_empty() { // if there are conversations
-            for (key, elem) in convs_summaries {
-                // Creates a new key for final collection
-                let key_final = ConversationKey::new_key(
-                    key.get_ip_srg(),
-                    key.get_ip_dest(),
-                    key.get_prt_srg(),
-                    key.get_prt_dest(),
-                    key.get_protocol()
-                );
-
-                // If key is already presents, updates the element otherwise inserts it
-                self.convs_final.entry(key_final)
-                    .and_modify(|entry| {
-                        entry.set_tot_bytes(elem.get_tot_bytes());
-                        entry.set_ending_time(elem.get_ending_time().unwrap());
-                        entry.set_tot_packets(elem.get_tot_bytes());
-                    })
-                    .or_insert(ConversationStats::new(
-                        elem.get_tot_bytes(),
-                        elem.get_starting_time().unwrap(),
-                        elem.get_ending_time().unwrap(),
-                        elem.get_tot_bytes()));
-            }
-        }
-    }*/
 
     pub fn reporting(&mut self) {
         let mut status = StatusValue::Exit;
 
         //TODO: spostare la open nello start e gestire errore
         let mut file = open_file(&self.filename).unwrap();
-        let mut write_header = true;
         let mut n_packets = 0;
         loop {
 
@@ -97,10 +69,7 @@ impl Reporter {
                     *status_writing_value = false;
                     //simple_write(&self, &mut file);
                     write_summaries(&mut file, &self.convs_summaries, &self.initial_time, &self.time_interval);
-                    //write_header = false;
 
-                    // Before clearing convs_summeries updates convs_final to produce final report
-                    //self.update_convs_final(&self.convs_summaries);
                     self.convs_summaries.clear();
                 }
             }
@@ -144,8 +113,8 @@ impl Reporter {
             //SE E' ARRIVATO QUI, LO STATUS E' RUNNING
 
             while let Ok(new_packet_info) = self.receiver_channel.try_recv(){
-                //n_packets += 1;
-                if new_packet_info.get_printed(){
+
+                if new_packet_info.get_printed() && check_filter(self.filter, new_packet_info.clone()){
                     n_packets += 1;
                     // Create the key of the packet considering (ip_sorg, ip_dest, port_sorg, port_dest, prot)
                     let key = ConversationKey::new_key(new_packet_info.get_ip_sorgente().unwrap(),
@@ -182,6 +151,26 @@ impl Reporter {
             }
         }
     }
+}
+
+fn check_filter(filter: Filter, packet_info: PacketInfo) -> bool {
+    if filter.get_ip_srg().is_some() &&
+        packet_info.get_ip_sorgente().unwrap() != filter.get_ip_srg().unwrap() {
+        return false;
+    }
+    if filter.get_ip_dest().is_some() &&
+        packet_info.get_ip_destinazione().unwrap() != filter.get_ip_dest().unwrap() {
+        return false;
+    }
+    if filter.get_prt_srg().is_some() &&
+        packet_info.get_porta_sorgente() != filter.get_prt_srg().unwrap() {
+        return false;
+    }
+    if filter.get_prt_dest().is_some() &&
+        packet_info.get_porta_destinazione() != filter.get_prt_dest().unwrap() {
+        return false;
+    }
+    true
 }
 
 

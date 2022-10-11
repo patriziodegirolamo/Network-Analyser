@@ -205,7 +205,8 @@ impl NetworkAnalyser {
                 rcv_sniffer,
                 snd_timer,
                 status_writing,
-                time_reporter);
+                time_reporter,
+                filter);
             reporter.reporting();
         }));
 

@@ -104,7 +104,7 @@ impl PacketInfo {
             protocol: Protocol::None,
             dim: 0,
             arrival_time: None,
-            printed: true,
+            printed: false,
         };
     }
 
@@ -172,8 +172,8 @@ impl PacketInfo {
         self.protocol = protocol
     }
 
-    pub fn set_not_printed(&mut self) {
-        self.printed = false;
+    pub fn set_printed(&mut self) {
+        self.printed = true;
     }
 }
 
@@ -254,7 +254,7 @@ impl ConversationKey {
     pub fn get_protocol(&self) -> Protocol{ return self.protocol}
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Filter {
     ip_srg: Option<IpAddr>,
     ip_dest: Option<IpAddr>,
@@ -321,6 +321,12 @@ impl Filter {
     pub fn set_protocol(&mut self, protocol: Protocol) {
         self.protocol = protocol;
     }
+
+    pub fn get_ip_srg(&self) -> Option<IpAddr> { return self.ip_srg}
+    pub fn get_ip_dest(&self) -> Option<IpAddr> { return self.ip_dest}
+    pub fn get_prt_srg(&self) -> Option<u16> { return self.prt_srg}
+    pub fn get_prt_dest(&self) -> Option<u16> { return self.prt_dest}
+    pub fn get_protocol(&self) -> Protocol{ return self.protocol}
 }
 
 /*
@@ -332,8 +338,8 @@ fn handle_dns_packet(packet: &[u8], new_packet_info: &mut PacketInfo, filter: &F
     match dns_parser::Packet::parse(packet) {
         Ok(dns_packet) => {
             PacketInfo::set_protocol(new_packet_info, Protocol::Dns);
-            if filter.protocol != Protocol::None && filter.protocol != Protocol::Dns {
-                new_packet_info.set_not_printed();
+            if filter.protocol == Protocol::Dns {
+                new_packet_info.set_printed();
             }
 
             let questions = dns_packet.questions.iter().map(|q| { q.qname.to_string() }).collect::<Vec<String>>();
@@ -350,8 +356,8 @@ fn handle_tls_packet(packet: &[u8], new_packet_info: &mut PacketInfo, filter: &F
         Ok(tls_packet) => {
             PacketInfo::set_protocol(new_packet_info, Protocol::Tls);
             //println!("TLS plaintext {:?}", tls_packet.1);
-            if filter.protocol != Protocol::None && filter.protocol != Protocol::Tls {
-                new_packet_info.set_not_printed();
+            if filter.protocol == Protocol::Tls {
+                new_packet_info.set_printed();
             }
         },
         Err(_) => {}
@@ -361,8 +367,8 @@ fn handle_tls_packet(packet: &[u8], new_packet_info: &mut PacketInfo, filter: &F
         Ok(tls_packet) => {
             PacketInfo::set_protocol(new_packet_info, Protocol::Tls);
             //println!("TLS encrypted {:?}", tls_packet.1);
-            if filter.protocol != Protocol::None && filter.protocol != Protocol::Tls {
-                new_packet_info.set_not_printed();
+            if filter.protocol == Protocol::Tls {
+                new_packet_info.set_printed();
             }
         },
         Err(_) => {}
@@ -379,13 +385,20 @@ fn handle_udp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_pac
 
         // Save them in the PacketInfo structure
 
+        if filter.protocol == Protocol::Udp {
+            new_packet_info.set_printed();
+        }
+
         //se esiste il filtro ed è diverso dalla porta sorgente
+        /*
         if filter.prt_srg.is_some() && filter.prt_srg.unwrap() != prt_srg {
-            new_packet_info.set_not_printed();
+            new_packet_info.set_printed();
         }
         if filter.prt_dest.is_some() && filter.prt_dest.unwrap() != prt_dest {
-            new_packet_info.set_not_printed();
+            new_packet_info.set_printed();
         }
+
+         */
 
         PacketInfo::set_porta_sorgente(new_packet_info, prt_srg);
         PacketInfo::set_porta_destinazione(new_packet_info, prt_dest);
@@ -403,9 +416,10 @@ fn handle_icmp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_pa
     if let Some(icmp_packet) = icmp_packet {
         // Save the protocol type in the PacketInfo structure
         PacketInfo::set_protocol(new_packet_info, Protocol::IcmpV4);
-        if filter.protocol != Protocol::IcmpV4 || filter.protocol != Protocol::IcmpV4 {
-            new_packet_info.set_not_printed();
+        if filter.protocol == Protocol::IcmpV4 {
+            new_packet_info.set_printed();
         }
+        /*
         if new_packet_info.printed {
             match icmp_packet.get_icmp_type() {
                 IcmpTypes::EchoReply => {
@@ -419,6 +433,8 @@ fn handle_icmp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_pa
                 },
             }
         } else {}
+
+         */
     } else {
         println!("Malformed ICMP Packet");
     }
@@ -430,8 +446,8 @@ fn handle_icmpv6_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_
     if let Some(icmpv6_packet) = icmpv6_packet {
         // Save the protocol type in the PacketInfo structure
         PacketInfo::set_protocol(new_packet_info, Protocol::IcmpV6);
-        if filter.protocol != Protocol::IcmpV6 || filter.protocol != Protocol::IcmpV6 {
-            new_packet_info.set_not_printed();
+        if filter.protocol == Protocol::IcmpV6 {
+            new_packet_info.set_printed();
         }
     } else {
         println!("Malformed ICMPv6 Packet");
@@ -445,13 +461,20 @@ fn handle_tcp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_pac
         let prt_srg = tcp.get_source();
         let prt_dest = tcp.get_destination();
 
+        if filter.protocol == Protocol::Tcp {
+            new_packet_info.set_printed();
+        }
+
         //se esiste il filtro ed è diverso dalla porta sorgente
+        /*
         if filter.prt_srg.is_some() && filter.prt_srg.unwrap() != prt_srg {
-            new_packet_info.set_not_printed();
+            new_packet_info.set_printed();
         }
         if filter.prt_dest.is_some() && filter.prt_dest.unwrap() != prt_dest {
-            new_packet_info.set_not_printed();
+            new_packet_info.set_printed();
         }
+
+         */
 
         // Save them in the PacketInfo structure
         PacketInfo::set_porta_sorgente(new_packet_info, prt_srg);
@@ -469,37 +492,47 @@ fn handle_transport_protocol(source: IpAddr, destination: IpAddr, protocol: IpNe
     match protocol {
         IpNextHeaderProtocols::Udp => {
             //se il protocollo è udp ma il filtro è diverso da udp, dns o none -> il pacchetto va filtrato
-            match filter.protocol {
+            /*match filter.protocol {
                 Protocol::Udp => {}
                 Protocol::Dns => {}
                 Protocol::None => {}
-                _ => { new_packet_info.set_not_printed() }
+                _ => { new_packet_info.set_printed() }
             }
+
+             */
             handle_udp_packet(source, destination, packet, new_packet_info, filter)
         }
         IpNextHeaderProtocols::Tcp => {
             //se il protocollo è tcp ma il filtro è diverso da tcp, tls, dns o none -> il pacchetto va filtrato
+            /*
             match filter.protocol {
                 Protocol::Tls => {}
                 Protocol::Tcp => {}
                 Protocol::Dns => {}
                 Protocol::None => {}
-                _ => { new_packet_info.set_not_printed(); }
+                _ => { new_packet_info.set_printed(); }
             }
+             */
             handle_tcp_packet(source, destination, packet, new_packet_info, filter)
         }
         IpNextHeaderProtocols::Icmp => {
             //se il protocollo non è icmp -> va filtrato
+            /*
             if filter.protocol != Protocol::IcmpV4 {
-                new_packet_info.set_not_printed();
+                new_packet_info.set_printed();
             }
+
+             */
             handle_icmp_packet(source, destination, packet, new_packet_info, filter);
         }
         IpNextHeaderProtocols::Icmpv6 => {
             //se il protocollo non è icmp -> va filtrato
+            /*
             if filter.protocol != Protocol::IcmpV6 {
-                new_packet_info.set_not_printed();
+                new_packet_info.set_printed();
             }
+
+             */
             handle_icmpv6_packet(source, destination, packet, new_packet_info, filter);
         }
         IpNextHeaderProtocols::Pipe => {
@@ -532,12 +565,19 @@ fn handle_ipv4_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInf
 
         // Save them in the Packet Info structure
 
+        // If there is a filter on the protocol and it is IPv4
+        if filter.protocol == Protocol::IpV4 {
+            new_packet_info.set_printed();
+        }
+
+        /*
         if filter.ip_srg.is_some() && filter.ip_srg.unwrap() != ip_sorg {
-            new_packet_info.set_not_printed();
+            new_packet_info.set_printed();
         }
         if filter.ip_dest.is_some() && filter.ip_dest.unwrap() != ip_dest {
-            new_packet_info.set_not_printed();
+            new_packet_info.set_printed();
         }
+        */
 
         PacketInfo::set_ip_sorgente(new_packet_info, ip_sorg);
         PacketInfo::set_ip_destinazione(new_packet_info, ip_dest);
@@ -563,11 +603,17 @@ fn handle_ipv6_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInf
         let ip_dest = IpAddr::V6(header.get_destination());
 
         // Save them in the Packet Info structure
+
+        // If there is a filter on the protocol and it is IPv6
+        if filter.protocol == Protocol::IpV6 {
+            new_packet_info.set_printed();
+        }
+
         if filter.ip_srg.is_some() && filter.ip_srg.unwrap() != ip_sorg {
-            new_packet_info.set_not_printed();
+            new_packet_info.set_printed();
         }
         if filter.ip_dest.is_some() && filter.ip_dest.unwrap() != ip_dest {
-            new_packet_info.set_not_printed();
+            new_packet_info.set_printed();
         }
 
         // Save them in the Packet Info structure
@@ -593,24 +639,26 @@ fn handle_arp_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInfo
         let ip_sorg = IpAddr::V4(header.get_sender_proto_addr());
         let ip_dest = IpAddr::V4(header.get_target_proto_addr());
 
-        //NON STAMPO IL PACCHETTO SOLO SE:
-        //IL FILTRO SUL PROTOCOLLO ESISTE ED E' DIVERSO DA ARP
-        //IL FILTRO SULL'INDIRIZZO ESISTE ED E' DIVERSO DA QUELLO CORRENTE
+        // If there is a filter on the protocol and it is IPv4
+        if filter.protocol == Protocol::Arp {
+            new_packet_info.set_printed();
+        }
+
+        /*
         if filter.protocol != Protocol::None && filter.protocol != Protocol::Arp {
-            new_packet_info.set_not_printed();
+            new_packet_info.set_printed();
         }
         if filter.ip_srg.is_some() && filter.ip_srg.unwrap() != ip_sorg {
-            new_packet_info.set_not_printed();
+            new_packet_info.set_printed();
         }
         if filter.ip_dest.is_some() && filter.ip_dest.unwrap() != ip_dest {
-            new_packet_info.set_not_printed();
+            new_packet_info.set_printed();
         }
+         */
         PacketInfo::set_ip_sorgente(new_packet_info, ip_sorg);
         PacketInfo::set_ip_destinazione(new_packet_info, ip_dest);
         PacketInfo::set_protocol(new_packet_info, Protocol::Arp);
 
-        if new_packet_info.printed {
-        }
     } else {
         println!("Malformed ARP Packet");
     }
@@ -621,15 +669,17 @@ pub fn handle_ethernet_frame(ethernet: &EthernetPacket, new_packet_info: &mut Pa
     //let dim_header = ethernet.packet().len() - ethernet.payload().len();
     //println!("\n DIM_tot = {}, Dim_header = {}, protocol filtrato = {}", ethernet.packet().len(), dim_header, filter.protocol);
 
+    // If there is no filter on the protocol, packet is set printed
+    if filter.protocol == Protocol::None {
+        new_packet_info.set_printed();
+    }
+
     match ethernet.get_ethertype() {
         EtherTypes::Ipv4 => handle_ipv4_packet(ethernet, new_packet_info, filter),
         EtherTypes::Ipv6 => handle_ipv6_packet(ethernet, new_packet_info, filter),
         EtherTypes::Arp => handle_arp_packet(ethernet, new_packet_info, filter),
         _ => {
             println!("unknown lvl 3 protocol");
-            if filter.protocol == Protocol::None {
-
-            }
         }
     }
 }
