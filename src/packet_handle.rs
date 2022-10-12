@@ -265,13 +265,7 @@ pub struct Filter {
 
 impl Display for Filter {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        // TODO: mettere delle stampe migliori se è none l'option! (Non valore di default)
-        let mut ip_src = match self.ip_srg {
-            Some(ip) => ip.to_string(),
-            _ => "Any".to_string()
-        };
-        //let ip_def = IpAddr::V4(Ipv4Addr::new(1,1,1,1));
-        //let prt_def = 0;
+
         write!(f, "[ IP source: {}; IP dest: {}, Port source: {}, Port dest: {}, Protocol: {} ]",
                match self.ip_srg {
                    Some(ip) => ip.to_string(),
@@ -443,7 +437,7 @@ fn handle_icmp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_pa
 fn handle_icmpv6_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) {
     let icmpv6_packet = Icmpv6Packet::new(packet);
 
-    if let Some(icmpv6_packet) = icmpv6_packet {
+    if let Some(_) = icmpv6_packet {
         // Save the protocol type in the PacketInfo structure
         PacketInfo::set_protocol(new_packet_info, Protocol::IcmpV6);
         if filter.protocol == Protocol::IcmpV6 {
