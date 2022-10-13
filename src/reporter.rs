@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io;
@@ -7,6 +8,43 @@ use prettytable::{Cell, Row, Table};
 use std::time::{SystemTime};
 use crate::packet_handle::{ConversationKey, ConversationStats, PacketInfo};
 use crate::{Filter,Status, StatusValue};
+use crate::{Filter, Protocol, Status, StatusValue};
+use tabled::{Table, Tabled, Style, Width, Modify, Disable};
+use tabled::Disable::Row;
+use tabled::object::{Rows, Column, Columns, Object};
+use tabled::papergrid::Borders;
+use tabled::style::Border;
+
+#[derive(Tabled)]
+struct ConvTabled{
+    time: String,
+    ip_srg: String,
+    prt_srg: String,
+    ip_dest: String,
+    prt_dest: String,
+    protocol: String,
+    tot_bytes: String,
+    starting_time: String,
+    ending_time: String,
+    tot_packets: String,
+}
+impl ConvTabled{
+    fn new( time: String,
+            ip_srg: String,
+            prt_srg: String,
+            ip_dest: String,
+            prt_dest: String,
+            protocol: String,
+            tot_bytes: String,
+            starting_time: String,
+            ending_time: String,
+            tot_packets: String)
+        -> ConvTabled{
+        ConvTabled{
+            time, ip_srg, prt_srg, ip_dest, prt_dest, protocol, tot_bytes, starting_time, ending_time, tot_packets
+        }
+    }
+}
 
 pub struct Reporter {
     filename: String,
@@ -55,6 +93,7 @@ impl Reporter {
         //TODO: spostare la open nello start e gestire errore
         let mut file = open_file(&self.filename).unwrap();
         let mut n_packets = 0;
+        let mut write_titles = true;
         loop {
 
             if !self.convs_summaries.is_empty() // If there are conversation to write
@@ -64,8 +103,10 @@ impl Reporter {
                     println!("Scrivo su report!");
                     *status_writing_value = false;
                     //simple_write(&self, &mut file);
-                    write_summaries(&mut file, &self.convs_summaries, &self.initial_time, &self.time_interval);
-
+                    write_summaries(&mut file, &self.convs_summaries, &self.initial_time, &self.time_interval, write_titles);
+                    if write_titles {
+                        write_titles = false;
+                    }
                     self.convs_summaries.clear();
                 }
             }
@@ -91,7 +132,7 @@ impl Reporter {
                     StatusValue::Exit => {
                         if !self.convs_summaries.is_empty() {// Before exit update the report one last time and produces final report
                             println!("Scrivo su report!");
-                            write_summaries(&mut file, &self.convs_summaries, &self.initial_time, &self.time_interval);
+                            write_summaries(&mut file, &self.convs_summaries, &self.initial_time, &self.time_interval, false);
                         }
                         println!("Reporter exit, TOT Packets: {}", n_packets);
                         // Alert the timer thread
@@ -184,6 +225,7 @@ fn open_file(filename: &String) -> io::Result<File> {
 
 /*
 fn simple_write(reporter: &Reporter, file: &mut File){
+    /*
     let secs : u64 = reporter.initial_time.elapsed().unwrap().as_secs();
     let secs_str : String = secs.to_string();
     let mut table = Table::new();
@@ -191,34 +233,22 @@ fn simple_write(reporter: &Reporter, file: &mut File){
         Cell::new(&*secs_str),
     ]));
     table.print(file).unwrap();
+
+     */
 }
 */
 
 //TODO: handle the format!
-fn write_summaries(file: &mut File, convs_summaries: &HashMap<ConversationKey, ConversationStats>, time: &SystemTime, time_interval: &usize) {
-    let mut table = Table::new();
+fn write_summaries(file: &mut File, convs_summaries: &HashMap<ConversationKey, ConversationStats>, time: &SystemTime, time_interval: &usize, write_titles: bool) {
 
     // Retrieves closest value of time interval since time elapsed
     let secs : u64 = time.elapsed().unwrap().as_secs()
         .div_euclid(*time_interval as u64)*(*time_interval as u64);
     let secs_str : String = secs.to_string();
 
-    table.set_titles(Row::new(vec![
-        Cell::new("NEW REPORT").style_spec("bc")
-    ]));
-
-    table.add_row(Row::new(vec![
-        Cell::new("Time").style_spec("b"),
-        Cell::new("Ip_srg").style_spec("b"),
-        Cell::new("Prt_srg").style_spec("b"),
-        Cell::new("Ip_dest").style_spec("b"),
-        Cell::new("Prt_dest").style_spec("b"),
-        Cell::new("Protocol").style_spec("b"),
-        Cell::new("Tot_bytes").style_spec("b"),
-        Cell::new("Starting_time").style_spec("b"),
-        Cell::new("Ending_time").style_spec("b"),
-        Cell::new("Tot_packets").style_spec("b"),
-    ]));
+    let style = Style::ascii();
+    let column_dim = 15;
+    let mut convs_printed = vec![];
 
     // Creo un vettore in cui inserisco le conversazioni come tupla (Key, Stats)
     let mut sorted_conv: Vec<(ConversationKey, ConversationStats)> = Vec::new();
@@ -254,42 +284,45 @@ fn write_summaries(file: &mut File, convs_summaries: &HashMap<ConversationKey, C
             }
         };
 
-        table.add_row(Row::new(vec![
-            Cell::new(&*secs_str),
-            Cell::new(&*conv.0.get_ip_srg().to_string()), // s  : String -> *s : str (via Deref<Target=str>) -> &*s: &str
-            Cell::new(normalized_prt_src),
-            Cell::new(&*conv.0.get_ip_dest().to_string()),
-            Cell::new(normalized_prt_dst),
-            Cell::new(&*conv.0.get_protocol().to_string()),
-            Cell::new(&*conv.1.get_tot_bytes().to_string()),
-            Cell::new(&*start_format),
-            Cell::new(&*end_format),
-            Cell::new(&*conv.1.get_tot_packets().to_string()),
-        ]));
+        let conv = ConvTabled::new(
+            secs_str.clone(),
+            conv.0.get_ip_srg().to_string(),
+            normalized_prt_src.to_string(),
+            conv.0.get_ip_dest().to_string(),
+            normalized_prt_dst.to_string(),
+            conv.0.get_protocol().to_string(),
+            conv.1.get_tot_bytes().to_string(),
+            start_format,
+            end_format,
+            conv.1.get_tot_packets().to_string()
+        );
+
+        convs_printed.push(conv);
     }
-    table.print(file).expect("Error");
+
+    let mut table = Table::new(convs_printed);
+
+    //per settare lo stile
+    table = table.with(style.clone());
+
+    //per settare la dim minima
+    table = table.with(Modify::new(Rows::new(0..)).with(Width::increase(column_dim)));
+
+    //scrivo l'header solo la prima volta
+    if write_titles == false{
+        table = table.with(Disable::Row(0..1));
+    }
+
+    //scrivo il report
+    write!(file, "{}\n", table.to_string()).expect("Error during the writing of the report");
 
 }
 
 fn write_final_report(file: &mut File, convs_final: &HashMap<ConversationKey, ConversationStats>) {
 
-    let mut table = Table::new();
-
-    table.set_titles(Row::new(vec![
-        Cell::new("FINAL REPORT").style_spec("bc")
-    ]));
-
-    table.add_row(Row::new(vec![
-        Cell::new("Ip_srg").style_spec("b"),
-        Cell::new("Prt_srg").style_spec("b"),
-        Cell::new("Ip_dest").style_spec("b"),
-        Cell::new("Prt_dest").style_spec("b"),
-        Cell::new("Protocol").style_spec("b"),
-        Cell::new("Tot_bytes").style_spec("b"),
-        Cell::new("Starting_time").style_spec("b"),
-        Cell::new("Ending_time").style_spec("b"),
-        Cell::new("Tot_packets").style_spec("b"),
-    ]));
+    let style = Style::rounded();
+    let column_dim = 15;
+    let mut convs_printed = vec![];
 
     if !convs_final.is_empty(){
 
@@ -326,19 +359,49 @@ fn write_final_report(file: &mut File, convs_final: &HashMap<ConversationKey, Co
                 }
             };
 
-            table.add_row(Row::new(vec![
-                Cell::new(&*conv.0.get_ip_srg().to_string()), // s  : String -> *s : str (via Deref<Target=str>) -> &*s: &str
-                Cell::new(normalized_prt_src),
-                Cell::new(&*conv.0.get_ip_dest().to_string()),
-                Cell::new(normalized_prt_dst),
-                Cell::new(&*conv.0.get_protocol().to_string()),
-                Cell::new(&*conv.1.get_tot_bytes().to_string()),
-                Cell::new(&*start_format),
-                Cell::new(&*end_format),
-                Cell::new(&*conv.1.get_tot_packets().to_string()),
-            ]));
+            let conv = ConvTabled::new(
+                "".to_string(),
+                conv.0.get_ip_srg().to_string(),
+                normalized_prt_src.to_string(),
+                conv.0.get_ip_dest().to_string(),
+                normalized_prt_dst.to_string(),
+                conv.0.get_protocol().to_string(),
+                conv.1.get_tot_bytes().to_string(),
+                start_format,
+                end_format,
+                conv.1.get_tot_packets().to_string()
+            );
+
+            convs_printed.push(conv);
         }
-        table.print(file).expect("Error");
+        let mut table = Table::new(convs_printed);
+        let dim = table.shape();
+        //per settare lo stile
+        table = table.with(style.clone());
+
+        //per settare la dim minima
+        table = table.with(Modify::new(Rows::new(0..)).with(Width::increase(column_dim)));
+
+
+        table = table.with(Disable::Column(0..1));
+
+        table = table.with(Modify::new(Columns::new(1..)).with(Border::default()
+            .right('│').left('│')));
+
+        table = table.with(Modify::new(tabled::object::Cell(0,0))
+                               .with(Border::default()
+                                   .top_left_corner('╭')
+                                   .left('│')
+                                   .bottom_left_corner('├')
+                                   .bottom('─')));
+
+        table = table.with(Modify::new(tabled::object::Cell(dim.0 -1,0))
+            .with(Border::default()
+                .bottom_left_corner('╰')));
+
+        //scrivo il report
+        write!(file, "{}\n", table.to_string()).expect("Error during the writing of the final report");
+
     }
 }
 

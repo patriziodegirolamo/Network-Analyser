@@ -189,7 +189,8 @@ impl ConversationStats {
             starting_time: Some(start),
             ending_time: Some(end),
             tot_packets,
-
+            //TODO: add number of packets exchanged
+            //TODO: add Application Information
         };
     }
 
