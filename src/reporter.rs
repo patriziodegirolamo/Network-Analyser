@@ -1,15 +1,17 @@
 use std::collections::HashMap;
+use std::fmt::format;
 use std::fs::File;
 use std::io;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{Receiver, Sender};
 use std::time::{SystemTime};
 use crate::packet_handle::{ConversationKey, ConversationStats, PacketInfo};
-use crate::{Filter,  Status, StatusValue};
-use tabled::{Table, Tabled, Style, Width, Modify, Disable};
-use tabled::object::{Rows, Columns, Column, Object};
+use crate::{Filter, Protocol, Status, StatusValue};
+use tabled::{Table, Tabled, Style, Width, Modify, Disable, Alignment, Extract};
+use tabled::object::{Rows, Columns, Column, Object, Segment};
 use tabled::style::Border;
 use std::io::Write;
+use tabled::formatting_settings::TrimStrategy;
 
 #[derive(Tabled)]
 struct ConvTabled{
@@ -219,22 +221,6 @@ fn open_file(filename: &String) -> io::Result<File> {
     return File::options().write(true).truncate(true).create(true).open(filename);
 }
 
-/*
-fn simple_write(reporter: &Reporter, file: &mut File){
-    /*
-    let secs : u64 = reporter.initial_time.elapsed().unwrap().as_secs();
-    let secs_str : String = secs.to_string();
-    let mut table = Table::new();
-    table.add_row(Row::new(vec![
-        Cell::new(&*secs_str),
-    ]));
-    table.print(file).unwrap();
-
-     */
-}
-*/
-
-//TODO: handle the format!
 fn write_summaries(file: &mut File, convs_summaries: &HashMap<ConversationKey, ConversationStats>, time: &SystemTime, time_interval: &usize, write_titles: bool) {
 
     // Retrieves closest value of time interval since time elapsed
@@ -242,6 +228,7 @@ fn write_summaries(file: &mut File, convs_summaries: &HashMap<ConversationKey, C
         .div_euclid(*time_interval as u64)*(*time_interval as u64);
     let secs_str : String = secs.to_string();
 
+    // values for print the report table
     let style = Style::ascii();
     let column_dim = 30;
     let mut convs_printed = vec![];
@@ -280,13 +267,18 @@ fn write_summaries(file: &mut File, convs_summaries: &HashMap<ConversationKey, C
             }
         };
 
+        let prtcl = match conv.0.get_protocol() {
+            Protocol::None => "-".to_string(),
+            _ => conv.0.get_protocol().to_string(),
+        };
+
         let conv = ConvTabled::new(
             secs_str.clone(),
             conv.0.get_ip_srg().to_string(),
             normalized_prt_src.to_string(),
             conv.0.get_ip_dest().to_string(),
             normalized_prt_dst.to_string(),
-            conv.0.get_protocol().to_string(),
+            prtcl,
             conv.1.get_tot_bytes().to_string(),
             start_format,
             end_format,
@@ -298,16 +290,26 @@ fn write_summaries(file: &mut File, convs_summaries: &HashMap<ConversationKey, C
 
     let mut table = Table::new(convs_printed);
 
-    //per settare lo stile
-    table = table.with(style.clone());
-
-    //per settare la dim minima
-    table = table.with(Modify::new(Rows::new(0..)).with(Width::increase(column_dim/2)));
-    table = table.with(Modify::new(Columns::new(1..2).and(Columns::new(3..4))).with(Width::increase(column_dim)));
-    //scrivo l'header solo la prima volta
+    //write the header only the first time
     if write_titles == false{
-        table = table.with(Disable::Row(0..1));
+        table = table.with(Disable::Row(0..1))
     }
+
+    //set the style
+    table = table.with(style.clone())
+
+        //set the minimum dimension of all the columns
+        .with(Width::justify(column_dim/2))
+
+        //except the address ip ones
+        .with(Modify::new(Columns::single(1).and(Columns::single(3))).with(Width::increase(column_dim)))
+
+        //align at the middle
+        .with(
+            Modify::new(Segment::all())
+                .with(Alignment::center())
+                .with(TrimStrategy::Horizontal)
+    );
 
     //scrivo il report
     write!(file, "{}\n", table.to_string()).expect("Error during the writing of the report");
@@ -317,7 +319,6 @@ fn write_summaries(file: &mut File, convs_summaries: &HashMap<ConversationKey, C
 fn write_final_report(file: &mut File, convs_final: &HashMap<ConversationKey, ConversationStats>) {
 
     let style = Style::rounded();
-    //let column_dim = 15;
     let mut convs_printed = vec![];
 
     if !convs_final.is_empty(){
@@ -354,6 +355,10 @@ fn write_final_report(file: &mut File, convs_final: &HashMap<ConversationKey, Co
                     &prt_dst
                 }
             };
+            let prtcl = match conv.0.get_protocol() {
+                Protocol::None => "-".to_string(),
+                _ => conv.0.get_protocol().to_string(),
+            };
 
             let conv = ConvTabled::new(
                 "".to_string(),
@@ -361,7 +366,7 @@ fn write_final_report(file: &mut File, convs_final: &HashMap<ConversationKey, Co
                 normalized_prt_src.to_string(),
                 conv.0.get_ip_dest().to_string(),
                 normalized_prt_dst.to_string(),
-                conv.0.get_protocol().to_string(),
+                prtcl,
                 conv.1.get_tot_bytes().to_string(),
                 start_format,
                 end_format,
@@ -372,28 +377,20 @@ fn write_final_report(file: &mut File, convs_final: &HashMap<ConversationKey, Co
         }
         let mut table = Table::new(convs_printed);
         let dim = table.shape();
-        //per settare lo stile
-        table = table.with(style.clone());
 
-        //per settare la dim minima
-        //table = table.with(Modify::new(Rows::new(0..)).with(Width::increase(column_dim)));
+        //extract all the table except the first column
+        table = table.with(Disable::Column(0..1))
+            .with(Extract::segment(.., ..))
 
+            //set the style
+            .with(style)
 
-        table = table.with(Disable::Column(0..1));
-
-        table = table.with(Modify::new(Columns::new(1..)).with(Border::default()
-            .right('│').left('│')));
-
-        table = table.with(Modify::new(tabled::object::Cell(0,0))
-                               .with(Border::default()
-                                   .top_left_corner('╭')
-                                   .left('│')
-                                   .bottom_left_corner('├')
-                                   .bottom('─')));
-
-        table = table.with(Modify::new(tabled::object::Cell(dim.0 -1,0))
-            .with(Border::default()
-                .bottom_left_corner('╰')));
+            //align at the center
+            .with(
+                Modify::new(Segment::all())
+                .with(Alignment::center())
+                .with(TrimStrategy::Horizontal)
+        );
 
         //scrivo il report
         write!(file, "{}\n", table.to_string()).expect("Error during the writing of the final report");
