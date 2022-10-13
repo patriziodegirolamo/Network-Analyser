@@ -7,8 +7,8 @@ use std::fmt::{Display, Formatter};
 use std::io;
 use std::io::Write;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-use std::sync::{Arc, Condvar, Mutex, RwLock};
-use std::sync::mpsc::{channel, RecvTimeoutError, Sender};
+use std::sync::{Arc, Condvar, Mutex};
+use std::sync::mpsc::{channel, RecvTimeoutError};
 use packet_handle::{Filter};
 use pnet_datalink::{Channel, Config, NetworkInterface};
 use std::thread::{self, JoinHandle};
@@ -18,6 +18,7 @@ use regex::Regex;
 use crate::packet_handle::{Protocol};
 use crate::reporter::Reporter;
 use crate::sniffer::Sniffer;
+
 
 #[derive(Debug)]
 pub enum ErrorNetworkAnalyser {
@@ -42,7 +43,7 @@ impl Display for ErrorNetworkAnalyser {
 
 impl Error for ErrorNetworkAnalyser {}
 
-#[derive(PartialEq, Copy, Clone)]
+#[derive(PartialEq, Copy, Clone, Debug)]
 enum StatusValue {
     Running,
     Paused,
@@ -73,7 +74,6 @@ pub struct NetworkAnalyser {
     sniffer_handle: Option<JoinHandle<()>>,
     reporter_handle: Option<JoinHandle<()>>,
     status: Arc<Status>,
-    //timer_channel: Option<Sender<()>>,
     status_writing: Arc<Mutex<bool>>,
     timer_handle: Option<JoinHandle<()>>
 }
@@ -90,6 +90,20 @@ impl Display for NetworkAnalyser {
     }
 }
 
+/// Returns a person with the name given them
+///
+/// # Arguments
+///
+/// * `name` - A string slice that holds the name of the person
+///
+/// # Examples
+///
+/// ```
+/// // You can have rust code between fences inside the comments
+/// // If you pass --test to `rustdoc`, it will even test it for you!
+/// use doc::Person;
+/// let person = Person::new("name");
+/// ```
 impl NetworkAnalyser {
     pub fn new() -> Self {
         let dft_interface = select_device_by_name(find_my_device_name(0));
@@ -107,7 +121,6 @@ impl NetworkAnalyser {
             sniffer_handle: None,
             reporter_handle: None,
             status: Arc::new(Status::new()),
-            //timer_channel: None,
             status_writing: Arc::new(Mutex::new(false)),
             timer_handle: None
         };
@@ -141,60 +154,71 @@ impl NetworkAnalyser {
         let mut conf = Config::default();
         conf.read_buffer_size = 1000000;
         conf.write_buffer_size = 1000000;
-        println!("{:?}", conf);
 
-        let (_, mut rcv_interface) = match pnet_datalink::channel(&self.interface, conf) {
+        let (_, rcv_interface) = match pnet_datalink::channel(&self.interface, conf) {
             Ok(Channel::Ethernet(tx, rx)) => (tx, rx),
             Ok(_) => return Err(ErrorNetworkAnalyser::ErrorNa("Error: unhandled channel type".to_string())),
-            Err(e) => return Err(ErrorNetworkAnalyser::ErrorNa("unable to create channel".to_owned() + &e.to_string())),
+            Err(e) => return Err(ErrorNetworkAnalyser::ErrorNa("Error:unable to create channel".to_owned() + &e.to_string())),
         };
 
+        // Record initial time
         let time = SystemTime::now();
 
-        //thread sniffer
+        // Thread Sniffer
+        // - Create a channel shared by the sniffer and the reporter
         let (snd_sniffer, rcv_sniffer) = channel();
+        // - Clone the status, creating a copy of the pointer
         let status_sniffer = self.status.clone();
+        // - Clone the network interface pointer. It will be used by the sniffer to get packets from the interface
         let interface = self.interface.clone();
+        // - Clone the filter (needed by the sniffer to accordingly filter the packets)
         let filter = self.filter.clone();
+        // - Clone the initial time
         let time_sniffer = time.clone();
 
+        // Run the thread sniffer
         self.sniffer_handle = Some(thread::spawn(move || {
             let mut sniffer = Sniffer::new(interface, filter,snd_sniffer, rcv_interface, status_sniffer, time_sniffer);
             sniffer.sniffing();
         }));
 
-
+        // Thread Timer
+        // - Create a channel shared by the timer and the reporter to handle the close of the timer when the app goes in quit mode
         let (snd_timer, rcv_timer) = channel();
 
-        //thread timer
+        // - Clone time interval to pass it to the timer
         let time_interval = self.time_interval.clone();
+        // - Clone the writing status (shared by reporter and timer)
         let status_writing = self.status_writing.clone();
-
-        //self.timer_channel = Some(snd_timer.clone());
+        // - Run the thread
         self.timer_handle = Some(thread::spawn(move || {
             loop {
+                // At each iteration wait at most 'time interval' seconds. If a packet is received before the timeout it means that the status got to 'Quit'
+                // so also the timer need to return.
+                // Otherwise 'time_interval' seconds passed so the timer sets the 'status_writing_value' to 'true' to notify the reporter to write the report.
                 match rcv_timer.recv_timeout(Duration::from_secs(time_interval as u64)) {
                     Ok(_) => {
                         break;
                     },
-                    Err(err) => {
+                    Err(err) =>
                         if err == RecvTimeoutError::Timeout {
                             let mut status_writing_value = status_writing.lock().unwrap();
                             *status_writing_value = true;
                         }
-                    }
+
                 }
             }
         }));
 
-        //thread reporter
+        // Thread Reporter
+        // - Clone all the data needed by the reporter
         let status_reporter = self.status.clone();
         let filename = self.filename.clone();
         let final_filename = self.final_filename.clone();
         let time_interval = self.time_interval.clone();
         let status_writing = self.status_writing.clone();
         let time_reporter = time.clone();
-
+        // - Run the reporter thread
         self.reporter_handle = Some(thread::spawn(move || {
             let mut reporter = Reporter::new(
                 filename,
@@ -649,7 +673,7 @@ fn get_filter()-> Result<Filter, ErrorNetworkAnalyser>
 fn validate_ip_address(ip_str: String) -> Result<IpAddr, String> {
     let vec_ip4: Vec<&str> = ip_str.split(".").map(|x| x).collect();
     let vec_ip6: Vec<&str> = ip_str.split(":").map(|x| x).collect();
-    let mut error = String::new();
+
     if vec_ip4.len() == 4 {
         let mut correct = true;
         let mut tmp: Vec<u8> = vec![0; 4];
@@ -658,9 +682,9 @@ fn validate_ip_address(ip_str: String) -> Result<IpAddr, String> {
                 Ok(val) => {
                     tmp[i] = val;
                 }
-                Err(e) => {
+                Err(_) => {
                     correct = false;
-                    error = e.to_string();
+
                 }
             }
         }
@@ -675,9 +699,9 @@ fn validate_ip_address(ip_str: String) -> Result<IpAddr, String> {
                 Ok(val) => {
                     tmp[i] = val;
                 }
-                Err(e) => {
+                Err(_) => {
                     correct = false;
-                    error = e.to_string();
+
                 }
             }
         }

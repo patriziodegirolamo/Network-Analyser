@@ -1,11 +1,10 @@
 extern crate pnet;
 
 use enum_iterator::Sequence;
-use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use pnet::packet::arp::{ArpPacket};
 use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
-use pnet::packet::icmp::{echo_reply, echo_request, IcmpPacket, IcmpTypes};
+use pnet::packet::icmp::{ IcmpPacket};
 use pnet::packet::icmpv6::Icmpv6Packet;
 use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
 use pnet::packet::ipv4::Ipv4Packet;
@@ -14,15 +13,11 @@ use pnet::packet::tcp::TcpPacket;
 use pnet::packet::udp::UdpPacket;
 use pnet::packet::Packet;
 
-//use std::env;
-use std::io::{self, Write};
-use std::net::{IpAddr, Ipv4Addr};
+use std::net::{IpAddr};
 use std::time::{Duration};
-use prettytable::{Cell, Row, Table};
 
-use std::fs::{File};
+
 use std::str::FromStr;
-use pcap::Error;
 use pnet_datalink::{MacAddr, NetworkInterface};
 
 /* -------- Protocol enum ---------*/
@@ -194,8 +189,7 @@ impl ConversationStats {
             starting_time: Some(start),
             ending_time: Some(end),
             tot_packets,
-            //TODO: add number of packets exchanged
-            //TODO: add Application Information
+
         };
     }
 
@@ -204,9 +198,6 @@ impl ConversationStats {
     pub fn get_tot_bytes(&self) -> usize {return self.tot_bytes}
     pub fn get_tot_packets(&self) -> usize {return self.tot_packets}
 
-    pub fn set_starting_time(&mut self, start: Duration) {
-        self.starting_time = Some(start);
-    }
 
     pub fn set_ending_time(&mut self, end: Duration) {
         self.ending_time = Some(end);
@@ -320,7 +311,7 @@ impl Filter {
     pub fn get_ip_dest(&self) -> Option<IpAddr> { return self.ip_dest}
     pub fn get_prt_srg(&self) -> Option<u16> { return self.prt_srg}
     pub fn get_prt_dest(&self) -> Option<u16> { return self.prt_dest}
-    pub fn get_protocol(&self) -> Protocol{ return self.protocol}
+    //pub fn get_protocol(&self) -> Protocol{ return self.protocol}
 }
 
 /*
@@ -330,15 +321,12 @@ impl Filter {
 
 fn handle_dns_packet(packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) {
     match dns_parser::Packet::parse(packet) {
-        Ok(dns_packet) => {
+        Ok(_) => {
             PacketInfo::set_protocol(new_packet_info, Protocol::Dns);
             if filter.protocol == Protocol::Dns {
                 new_packet_info.set_printed();
             }
 
-            let questions = dns_packet.questions.iter().map(|q| { q.qname.to_string() }).collect::<Vec<String>>();
-            //TODO: inserire le questions nel file di report
-            //println!("DNS questions: {:?}", questions);
         }
         Err(_) => {}
     }
@@ -346,30 +334,18 @@ fn handle_dns_packet(packet: &[u8], new_packet_info: &mut PacketInfo, filter: &F
 
 fn handle_tls_packet(packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) {
 
-    match  tls_parser::parse_tls_plaintext(packet) {
-        Ok(tls_packet) => {
+    if tls_parser::parse_tls_plaintext(packet).is_ok() || tls_parser::parse_tls_encrypted(packet).is_ok()
+    {
             PacketInfo::set_protocol(new_packet_info, Protocol::Tls);
             //println!("TLS plaintext {:?}", tls_packet.1);
             if filter.protocol == Protocol::Tls {
                 new_packet_info.set_printed();
             }
-        },
-        Err(_) => {}
-    }
+        }
 
-    match  tls_parser::parse_tls_encrypted(packet) {
-        Ok(tls_packet) => {
-            PacketInfo::set_protocol(new_packet_info, Protocol::Tls);
-            //println!("TLS encrypted {:?}", tls_packet.1);
-            if filter.protocol == Protocol::Tls {
-                new_packet_info.set_printed();
-            }
-        },
-        Err(_) => {}
-    }
 }
 
-fn handle_udp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) {
+fn handle_udp_packet(packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) {
     let udp = UdpPacket::new(packet);
 
     if let Some(udp) = udp {
@@ -404,10 +380,10 @@ fn handle_udp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_pac
     }
 }
 
-fn handle_icmp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) {
+fn handle_icmp_packet( packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) {
     let icmp_packet = IcmpPacket::new(packet);
 
-    if let Some(icmp_packet) = icmp_packet {
+    if let Some(_) = icmp_packet {
         // Save the protocol type in the PacketInfo structure
         PacketInfo::set_protocol(new_packet_info, Protocol::IcmpV4);
         if filter.protocol == Protocol::IcmpV4 {
@@ -434,7 +410,7 @@ fn handle_icmp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_pa
     }
 }
 
-fn handle_icmpv6_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) {
+fn handle_icmpv6_packet( packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) {
     let icmpv6_packet = Icmpv6Packet::new(packet);
 
     if let Some(_) = icmpv6_packet {
@@ -448,7 +424,7 @@ fn handle_icmpv6_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_
     }
 }
 
-fn handle_tcp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) {
+fn handle_tcp_packet( packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) {
     let tcp = TcpPacket::new(packet);
     if let Some(tcp) = tcp {
         // Extract the source and destination ports
@@ -482,7 +458,7 @@ fn handle_tcp_packet(source: IpAddr, destination: IpAddr, packet: &[u8], new_pac
     }
 }
 
-fn handle_transport_protocol(source: IpAddr, destination: IpAddr, protocol: IpNextHeaderProtocol, packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) {
+fn handle_transport_protocol(protocol: IpNextHeaderProtocol, packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) {
     match protocol {
         IpNextHeaderProtocols::Udp => {
             //se il protocollo è udp ma il filtro è diverso da udp, dns o none -> il pacchetto va filtrato
@@ -494,7 +470,7 @@ fn handle_transport_protocol(source: IpAddr, destination: IpAddr, protocol: IpNe
             }
 
              */
-            handle_udp_packet(source, destination, packet, new_packet_info, filter)
+            handle_udp_packet( packet, new_packet_info, filter)
         }
         IpNextHeaderProtocols::Tcp => {
             //se il protocollo è tcp ma il filtro è diverso da tcp, tls, dns o none -> il pacchetto va filtrato
@@ -507,7 +483,7 @@ fn handle_transport_protocol(source: IpAddr, destination: IpAddr, protocol: IpNe
                 _ => { new_packet_info.set_printed(); }
             }
              */
-            handle_tcp_packet(source, destination, packet, new_packet_info, filter)
+            handle_tcp_packet(packet, new_packet_info, filter)
         }
         IpNextHeaderProtocols::Icmp => {
             //se il protocollo non è icmp -> va filtrato
@@ -517,7 +493,7 @@ fn handle_transport_protocol(source: IpAddr, destination: IpAddr, protocol: IpNe
             }
 
              */
-            handle_icmp_packet(source, destination, packet, new_packet_info, filter);
+            handle_icmp_packet(packet, new_packet_info, filter);
         }
         IpNextHeaderProtocols::Icmpv6 => {
             //se il protocollo non è icmp -> va filtrato
@@ -527,7 +503,7 @@ fn handle_transport_protocol(source: IpAddr, destination: IpAddr, protocol: IpNe
             }
 
              */
-            handle_icmpv6_packet(source, destination, packet, new_packet_info, filter);
+            handle_icmpv6_packet( packet, new_packet_info, filter);
         }
         IpNextHeaderProtocols::Pipe => {
             //IP over IP
@@ -576,8 +552,7 @@ fn handle_ipv4_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInf
         PacketInfo::set_ip_sorgente(new_packet_info, ip_sorg);
         PacketInfo::set_ip_destinazione(new_packet_info, ip_dest);
         handle_transport_protocol(
-            ip_sorg,
-            ip_dest,
+
             header.get_next_level_protocol(),
             header.payload(),
             new_packet_info,
@@ -614,8 +589,7 @@ fn handle_ipv6_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInf
         PacketInfo::set_ip_sorgente(new_packet_info, ip_sorg);
         PacketInfo::set_ip_destinazione(new_packet_info, ip_dest);
         handle_transport_protocol(
-            ip_sorg,
-            ip_dest,
+
             header.get_next_header(),
             header.payload(),
             new_packet_info,

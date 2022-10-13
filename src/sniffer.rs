@@ -1,12 +1,9 @@
 use std::collections::HashSet;
-use std::net::{IpAddr, Ipv4Addr};
-use std::ops::Deref;
-use std::sync::{Arc, MutexGuard};
+use std::sync::{Arc};
 use std::sync::mpsc::Sender;
 use pnet_datalink::{DataLinkReceiver, NetworkInterface};
 use pnet::packet::ethernet::{EthernetPacket};
-use std::thread;
-use std::time::{Duration, SystemTime};
+use std::time::{SystemTime};
 use crate::packet_handle::PacketInfo;
 use crate::{Filter, packet_handle, Protocol, Status, StatusValue};
 
@@ -29,7 +26,7 @@ impl Sniffer {
     }
 
     pub fn sniffing(&mut self) {
-        let mut status = StatusValue::Exit;
+        let mut status;
 
         //TODO: serve per un check visivo dei pacchetti. Non è effettivamente utile!
         let mut buffer_packets = vec![];

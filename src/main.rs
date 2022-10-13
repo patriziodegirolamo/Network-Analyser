@@ -2,7 +2,7 @@ extern crate core;
 
 use std::io;
 use std::io::Write;
-use traffic_analyser::{ErrorNetworkAnalyser, NetworkAnalyser};
+use traffic_analyser::{NetworkAnalyser};
 
 fn main() {
 

@@ -1,16 +1,12 @@
 use std::collections::HashMap;
 use std::fs::File;
 use std::io;
-use std::io::Write;
-use std::net::IpAddr;
-use std::ops::{Deref, Div};
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{Receiver, Sender};
 use prettytable::{Cell, Row, Table};
-use std::thread;
-use std::time::{Duration, SystemTime};
+use std::time::{SystemTime};
 use crate::packet_handle::{ConversationKey, ConversationStats, PacketInfo};
-use crate::{Filter, Protocol, Status, StatusValue};
+use crate::{Filter,Status, StatusValue};
 
 pub struct Reporter {
     filename: String,
@@ -88,6 +84,9 @@ impl Reporter {
                         println!("Reporter is paused");
                         status = StatusValue::Paused;
                         status_sniffing_value = self.status_sniffing.cvar.wait_while(status_sniffing_value, |s| is_paused(&*s)).unwrap();
+
+                        assert_eq!(*status_sniffing_value, StatusValue::Running);
+                        // status running
                     }
                     StatusValue::Exit => {
                         if !self.convs_summaries.is_empty() {// Before exit update the report one last time and produces final report
@@ -183,6 +182,7 @@ fn open_file(filename: &String) -> io::Result<File> {
     return File::options().write(true).truncate(true).create(true).open(filename);
 }
 
+/*
 fn simple_write(reporter: &Reporter, file: &mut File){
     let secs : u64 = reporter.initial_time.elapsed().unwrap().as_secs();
     let secs_str : String = secs.to_string();
@@ -192,6 +192,7 @@ fn simple_write(reporter: &Reporter, file: &mut File){
     ]));
     table.print(file).unwrap();
 }
+*/
 
 //TODO: handle the format!
 fn write_summaries(file: &mut File, convs_summaries: &HashMap<ConversationKey, ConversationStats>, time: &SystemTime, time_interval: &usize) {
