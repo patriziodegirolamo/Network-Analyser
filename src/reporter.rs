@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io;
@@ -8,10 +9,14 @@ use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
 use std::time::{Duration, SystemTime};
+use enum_iterator::last;
 use crate::packet_handle::{ConversationKey, ConversationStats, PacketInfo};
 use crate::{Filter, Protocol, Status, StatusValue};
 use tabled::{Table, Tabled, Style, Width, Modify, Disable};
-use tabled::object::Rows;
+use tabled::Disable::Row;
+use tabled::object::{Rows, Column, Columns, Object};
+use tabled::papergrid::Borders;
+use tabled::style::Border;
 
 #[derive(Tabled)]
 struct ConvTabled{
@@ -368,7 +373,7 @@ fn write_final_report(file: &mut File, convs_final: &HashMap<ConversationKey, Co
             convs_printed.push(conv);
         }
         let mut table = Table::new(convs_printed);
-
+        let dim = table.shape();
         //per settare lo stile
         table = table.with(style.clone());
 
@@ -377,6 +382,20 @@ fn write_final_report(file: &mut File, convs_final: &HashMap<ConversationKey, Co
 
 
         table = table.with(Disable::Column(0..1));
+
+        table = table.with(Modify::new(Columns::new(1..)).with(Border::default()
+            .right('│').left('│')));
+
+        table = table.with(Modify::new(tabled::object::Cell(0,0))
+                               .with(Border::default()
+                                   .top_left_corner('╭')
+                                   .left('│')
+                                   .bottom_left_corner('├')
+                                   .bottom('─')));
+
+        table = table.with(Modify::new(tabled::object::Cell(dim.0 -1,0))
+            .with(Border::default()
+                .bottom_left_corner('╰')));
 
         //scrivo il report
         write!(file, "{}\n", table.to_string()).expect("Error during the writing of the final report");
