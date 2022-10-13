@@ -1,19 +1,15 @@
-use std::cell::Cell;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{Receiver, Sender};
-use prettytable::{Cell, Row, Table};
 use std::time::{SystemTime};
 use crate::packet_handle::{ConversationKey, ConversationStats, PacketInfo};
-use crate::{Filter,Status, StatusValue};
-use crate::{Filter, Protocol, Status, StatusValue};
+use crate::{Filter,  Status, StatusValue};
 use tabled::{Table, Tabled, Style, Width, Modify, Disable};
-use tabled::Disable::Row;
-use tabled::object::{Rows, Column, Columns, Object};
-use tabled::papergrid::Borders;
+use tabled::object::{Rows,  Columns};
 use tabled::style::Border;
+use std::io::Write;
 
 #[derive(Tabled)]
 struct ConvTabled{
