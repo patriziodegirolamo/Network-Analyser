@@ -7,7 +7,7 @@ use std::time::{SystemTime};
 use crate::packet_handle::{ConversationKey, ConversationStats, PacketInfo};
 use crate::{Filter,  Status, StatusValue};
 use tabled::{Table, Tabled, Style, Width, Modify, Disable};
-use tabled::object::{Rows,  Columns};
+use tabled::object::{Rows, Columns, Column, Object};
 use tabled::style::Border;
 use std::io::Write;
 
@@ -243,7 +243,7 @@ fn write_summaries(file: &mut File, convs_summaries: &HashMap<ConversationKey, C
     let secs_str : String = secs.to_string();
 
     let style = Style::ascii();
-    let column_dim = 15;
+    let column_dim = 30;
     let mut convs_printed = vec![];
 
     // Creo un vettore in cui inserisco le conversazioni come tupla (Key, Stats)
@@ -302,8 +302,8 @@ fn write_summaries(file: &mut File, convs_summaries: &HashMap<ConversationKey, C
     table = table.with(style.clone());
 
     //per settare la dim minima
-    table = table.with(Modify::new(Rows::new(0..)).with(Width::increase(column_dim)));
-
+    table = table.with(Modify::new(Rows::new(0..)).with(Width::increase(column_dim/2)));
+    table = table.with(Modify::new(Columns::new(1..2).and(Columns::new(3..4))).with(Width::increase(column_dim)));
     //scrivo l'header solo la prima volta
     if write_titles == false{
         table = table.with(Disable::Row(0..1));
@@ -317,7 +317,7 @@ fn write_summaries(file: &mut File, convs_summaries: &HashMap<ConversationKey, C
 fn write_final_report(file: &mut File, convs_final: &HashMap<ConversationKey, ConversationStats>) {
 
     let style = Style::rounded();
-    let column_dim = 15;
+    //let column_dim = 15;
     let mut convs_printed = vec![];
 
     if !convs_final.is_empty(){
@@ -376,7 +376,7 @@ fn write_final_report(file: &mut File, convs_final: &HashMap<ConversationKey, Co
         table = table.with(style.clone());
 
         //per settare la dim minima
-        table = table.with(Modify::new(Rows::new(0..)).with(Width::increase(column_dim)));
+        //table = table.with(Modify::new(Rows::new(0..)).with(Width::increase(column_dim)));
 
 
         table = table.with(Disable::Column(0..1));
