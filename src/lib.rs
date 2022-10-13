@@ -1,5 +1,4 @@
 mod packet_handle;
-mod tmp;
 mod sniffer;
 mod reporter;
 
@@ -74,7 +73,7 @@ pub struct NetworkAnalyser {
     sniffer_handle: Option<JoinHandle<()>>,
     reporter_handle: Option<JoinHandle<()>>,
     status: Arc<Status>,
-    timer_channel: Option<Sender<()>>,
+    //timer_channel: Option<Sender<()>>,
     status_writing: Arc<Mutex<bool>>,
     timer_handle: Option<JoinHandle<()>>
 }
@@ -95,8 +94,8 @@ impl NetworkAnalyser {
     pub fn new() -> Self {
         let dft_interface = select_device_by_name(find_my_device_name(0));
         let dft_time_interval = 5;
-        let dft_filename = "report.txt".to_string();
-        let dft_final_filename = "final_report.txt".to_string();
+        let dft_filename = "report.txt".to_string(); //default report file
+        let dft_final_filename = "final_report.txt".to_string(); //default final report file
         let dft_filter = Filter::new();
 
         return Self {
@@ -108,7 +107,7 @@ impl NetworkAnalyser {
             sniffer_handle: None,
             reporter_handle: None,
             status: Arc::new(Status::new()),
-            timer_channel: None,
+            //timer_channel: None,
             status_writing: Arc::new(Mutex::new(false)),
             timer_handle: None
         };
@@ -171,7 +170,7 @@ impl NetworkAnalyser {
         let time_interval = self.time_interval.clone();
         let status_writing = self.status_writing.clone();
 
-        self.timer_channel = Some(snd_timer.clone());
+        //self.timer_channel = Some(snd_timer.clone());
         self.timer_handle = Some(thread::spawn(move || {
             loop {
                 match rcv_timer.recv_timeout(Duration::from_secs(time_interval as u64)) {
