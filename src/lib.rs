@@ -90,20 +90,6 @@ impl Display for NetworkAnalyser {
     }
 }
 
-/// Returns a person with the name given them
-///
-/// # Arguments
-///
-/// * `name` - A string slice that holds the name of the person
-///
-/// # Examples
-///
-/// ```
-/// // You can have rust code between fences inside the comments
-/// // If you pass --test to `rustdoc`, it will even test it for you!
-/// use doc::Person;
-/// let person = Person::new("name");
-/// ```
 impl NetworkAnalyser {
     pub fn new() -> Self {
         let dft_interface = select_device_by_name(find_my_device_name(0));
@@ -126,6 +112,18 @@ impl NetworkAnalyser {
         };
     }
 
+    /// Function used to initialise the Network Analyser. If an error occours it returns an ErrorNetworkAnalyser describing what happen. Otherwise it returns void.
+    /// # Examples
+    /// ```
+    ///
+    /// match na.init()
+    ///     {
+    ///         Ok(_) => {}
+    ///         Err(e) => {
+    ///             println!("{}", e);
+    ///             return;}
+    ///     }
+    /// ```
     pub fn init(&mut self) -> Result<(), ErrorNetworkAnalyser> {
 
         println!();
