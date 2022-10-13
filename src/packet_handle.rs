@@ -14,11 +14,9 @@ use pnet::packet::tcp::TcpPacket;
 use pnet::packet::udp::UdpPacket;
 use pnet::packet::Packet;
 
-//use std::env;
 use std::io::{self, Write};
 use std::net::{IpAddr, Ipv4Addr};
 use std::time::{Duration};
-use prettytable::{Cell, Row, Table};
 
 use std::fs::{File};
 use std::str::FromStr;
