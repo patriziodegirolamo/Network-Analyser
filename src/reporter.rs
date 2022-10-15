@@ -41,7 +41,18 @@ impl ConvTabled{
         }
     }
 }
-
+/// Reporter object. It gets 'PacketInfo's from the 'Sniffer' object through the 'receiver_channel'.
+/// Every 'time_interval' seconds it prints on the 'filename' file the report of the conversations happened in the last time interval.
+/// In 'pause' mode stops taking packets from the channel and stops updating the report.
+/// In 'quit' mode writes on the report the last update and creates a final report with all the conversations happened.
+/// - *filename*: name of the report file (.exe)
+/// - *time_interval*: number of seconds before updating the report
+/// - *status_sniffing*: status of the application ['Running', 'Quit', 'Pause']
+/// - *receiver_channel*: receiver end of the channel shared with the Sniffer thread
+/// - *sender_timer*: sender end of the channel shared with the Timer thread.
+/// - *status_writing*: status shared with the Timer thread. When set to 'True' the reporter needs to update the report
+/// - *initial_time*: when the application began sniffing
+/// - *filter*: information on which packets the user is interested on see in the report
 pub struct Reporter {
     filename: String,
     final_filename: String,
@@ -58,6 +69,15 @@ pub struct Reporter {
 }
 
 impl Reporter {
+    /// Initialize the Reporter object
+    /// - *filename*: name of the report file (.exe)
+    /// - *time_interval*: number of seconds before updating the report
+    /// - *status_sniffing*: status of the application ['Running', 'Quit', 'Pause']
+    /// - *receiver_channel*: receiver end of the channel shared with the Sniffer thread
+    /// - *sender_timer*: sender end of the channel shared with the Timer thread.
+    /// - *status_writing*: status shared with the Timer thread. When set to 'True' the reporter needs to update the report
+    /// - *initial_time*: when the application began sniffing
+    /// - *filter*: information on which packets the user is interested on see in the report
     pub fn new(filename: String,
                final_filename: String,
                time_interval: usize,
@@ -82,10 +102,11 @@ impl Reporter {
             filter
         }
     }
-
+    /// Function used to perform the reporting.
+    /// It can be called only once. It returns when the status goes to 'Quit'.
     pub fn reporting(&mut self) {
         let mut status = StatusValue::Exit;
-
+        //TODO: impostare che può essere chiamata solo una voltaaaa
         //TODO: spostare la open nello start e gestire errore
         let mut file = open_file(&self.filename).unwrap();
         let mut n_packets = 0;
@@ -93,7 +114,7 @@ impl Reporter {
         loop {
 
             if !self.convs_summaries.is_empty() // If there are conversation to write
-            {
+            {   
                 let mut status_writing_value = self.status_writing.lock().unwrap();
                 if *status_writing_value == true {
                     println!("Scrivo su report!");
@@ -189,6 +210,8 @@ impl Reporter {
     }
 }
 
+/// It checks if the given packet_info needs to be filtered.
+///
 fn check_filter(filter: Filter, packet_info: PacketInfo) -> bool {
     if filter.get_ip_srg().is_some() &&
         packet_info.get_ip_sorgente().unwrap() != filter.get_ip_srg().unwrap() {
@@ -214,27 +237,16 @@ fn check_filter(filter: Filter, packet_info: PacketInfo) -> bool {
 *  PRINT on FiLE FUNCTIONS
 *
 */
+/// Given a file name returns the handle of the opened file.
 fn open_file(filename: &String) -> io::Result<File> {
     //TODO: GESTIRE ERRORE APERTURA FILE ???
     return File::options().write(true).truncate(true).create(true).open(filename);
 }
 
-/*
-fn simple_write(reporter: &Reporter, file: &mut File){
-    /*
-    let secs : u64 = reporter.initial_time.elapsed().unwrap().as_secs();
-    let secs_str : String = secs.to_string();
-    let mut table = Table::new();
-    table.add_row(Row::new(vec![
-        Cell::new(&*secs_str),
-    ]));
-    table.print(file).unwrap();
 
-     */
-}
-*/
-
-//TODO: handle the format!
+/// It writes all the conversations contained in the HashMap in the file appending at the end of the file.
+/// The conversations are organised in a table with rows: [time | ip_srg | prt_srg | ip_dest | prt_dest | protocol | tot_bytes | starting_time | ending_time | tot_packets ]
+/// sorted by starting_time.
 fn write_summaries(file: &mut File, convs_summaries: &HashMap<ConversationKey, ConversationStats>, time: &SystemTime, time_interval: &usize, write_titles: bool) {
 
     // Retrieves closest value of time interval since time elapsed
@@ -313,7 +325,9 @@ fn write_summaries(file: &mut File, convs_summaries: &HashMap<ConversationKey, C
     write!(file, "{}\n", table.to_string()).expect("Error during the writing of the report");
 
 }
-
+/// Write all the conversations sniffed by the analyser in the final report.
+/// The conversations are organised in a table with rows: [time | ip_srg | prt_srg | ip_dest | prt_dest | protocol | tot_bytes | starting_time | ending_time | tot_packets ]
+/// sorted by starting_time.
 fn write_final_report(file: &mut File, convs_final: &HashMap<ConversationKey, ConversationStats>) {
 
     let style = Style::rounded();
@@ -401,6 +415,7 @@ fn write_final_report(file: &mut File, convs_final: &HashMap<ConversationKey, Co
     }
 }
 
+/// Check if the status is 'Pause'
 fn is_paused(state: &StatusValue) -> bool {
     return match state {
         StatusValue::Running => false,

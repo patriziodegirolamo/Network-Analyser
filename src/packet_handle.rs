@@ -21,6 +21,7 @@ use std::str::FromStr;
 use pnet_datalink::{MacAddr, NetworkInterface};
 
 /* -------- Protocol enum ---------*/
+/// All possible Protocols that can be handled by the applications.
 #[derive(Sequence, Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum Protocol {
     Ethernet = 0,
@@ -77,6 +78,15 @@ impl Display for Protocol {
 
 /* -------- Packet info structure ---------*/
 #[derive(Debug, Clone)]
+/// Object used to save relevant information of a sniffed packet.
+/// - *ip_sorg*: Ip address of the source
+/// - *ip_dest*: Ip address of the destination
+/// - *prt_srg*: Source port
+/// - *prt_dst*: Destination port
+/// - *protocol*: Protocol carried by the packet
+/// - *dim*: size in bytes of the packet
+/// - *arrival_time*: when the packet arrived
+/// - *printed*: whether the packet needs to be printed on the report or if it is filtered out by the user.
 pub struct PacketInfo {
 
     ip_sorg: Option<IpAddr>,
@@ -90,6 +100,7 @@ pub struct PacketInfo {
 }
 
 impl PacketInfo {
+    /// Create a new PacketInfo object instance
     pub fn new() -> Self {
         return PacketInfo {
             ip_sorg: None,
@@ -106,31 +117,31 @@ impl PacketInfo {
     /*
     Getter methods
      */
-
+    /// It returns the size in bytes of the packet
     pub fn get_dim(&self) -> usize {
         return self.dim;
     }
-
+    /// It returns the arrival_time of the packet
     pub fn get_time(&self) -> Option<Duration> {
         return self.arrival_time;
     }
-
+    /// It returns the source ip address
     pub fn get_ip_sorgente(&self) -> Option<IpAddr> { return self.ip_sorg }
-
+    /// It returns the destination ip address
     pub fn get_ip_destinazione(&self) -> Option<IpAddr> { return self.ip_dest }
-
+    /// It returns the source port
     pub fn get_porta_sorgente(&self) -> u16 {
         self.prt_sorg
     }
-
+    /// It returns the destination port
     pub fn get_porta_destinazione(&self) -> u16 {
         self.prt_dest
     }
-
+    /// It returns the protocol carried by the packet
     pub fn get_protocol(&self) -> Protocol {
         self.protocol
     }
-
+    /// It returns whether the packets need to be printed or filtered out
     pub fn get_printed(&self) -> bool {
         return self.printed;
     }
@@ -139,34 +150,35 @@ impl PacketInfo {
     /*
     Setter methods
      */
+    /// Set the size of the packet
     pub fn set_dim(&mut self, dim: usize) {
         self.dim = dim
     }
-
+    /// Set the arrival time of the packet
     pub fn set_time(&mut self, time: Duration) {
         self.arrival_time = Some(time)
     }
-
+    /// Set the source ip address
     pub fn set_ip_sorgente(&mut self, ip_sorg: IpAddr) {
         self.ip_sorg = Some(ip_sorg);
     }
-
+    /// Set the destination ip address
     pub fn set_ip_destinazione(&mut self, ip_dest: IpAddr) {
         self.ip_dest = Some(ip_dest);
     }
-
+    /// Set the source port
     pub fn set_porta_sorgente(&mut self, porta_sorg: u16) {
         self.prt_sorg = porta_sorg;
     }
-
+    /// Set the destination port
     pub fn set_porta_destinazione(&mut self, porta_dest: u16) {
         self.prt_dest = porta_dest;
     }
-
+    /// Set the protocol carried by the packet
     pub fn set_protocol(&mut self, protocol: Protocol) {
         self.protocol = protocol
     }
-
+    /// Set that the packet needs to be printed (true)
     pub fn set_printed(&mut self) {
         self.printed = true;
     }
@@ -174,6 +186,11 @@ impl PacketInfo {
 
 /* -------- Conversation Stats struct ---------*/
 #[derive(Debug, Copy, Clone)]
+/// Object used to save relevant information on Conversations between (IP_source, PORT_source) and (IP_destination, PORT_destination) using a given Protocol.
+///     - *tot_bytes*: total number of bytes exchanged
+///     - *starting_time*: when the conversations started (considering as time 0 the time on which the sniffing began)
+///     - *ending_time*: when the conversations ended (considering as time 0 the time on which the sniffing began)
+///     - *tot_packets*: total number of packets exchanged
 pub struct ConversationStats {
     tot_bytes: usize,
     starting_time: Option<Duration>,
@@ -182,6 +199,11 @@ pub struct ConversationStats {
 }
 
 impl ConversationStats {
+    /// Create a new ConversationStats object instance and initialise its fields
+    ///     - *tot_bytes*: total number of bytes exchanged
+    ///     - *starting_time*: when the conversations started (considering as time 0 the time on which the sniffing began)
+    ///     - *ending_time*: when the conversations ended (considering as time 0 the time on which the sniffing began)
+    ///     - *tot_packets*: total number of packets exchanged
 
     pub fn new(tot_bytes: usize, start: Duration, end: Duration, tot_packets: usize) -> Self {
         return ConversationStats {
@@ -189,25 +211,26 @@ impl ConversationStats {
             starting_time: Some(start),
             ending_time: Some(end),
             tot_packets,
-            //TODO: add number of packets exchanged
-            //TODO: add Application Information
         };
     }
-
+    /// Get the starting time of the conversation (considering as time 0 the time on which the sniffing began)
     pub fn get_starting_time(&self) -> Option<Duration> {return self.starting_time}
+    /// Get the ending time of the conversation (considering as time 0 the time on which the sniffing began)
     pub fn get_ending_time(&self) -> Option<Duration> {return  self.ending_time}
+    /// Get the total number of bytes exchanged during the conversation
     pub fn get_tot_bytes(&self) -> usize {return self.tot_bytes}
+    /// Get the total number of packets exchanged during the conversation
     pub fn get_tot_packets(&self) -> usize {return self.tot_packets}
 
-
+    /// Set the ending time (considering as time 0 the time on which the sniffing began)
     pub fn set_ending_time(&mut self, end: Duration) {
         self.ending_time = Some(end);
     }
-
+    /// Set the total bytes exchanged in the conversation
     pub fn set_tot_bytes(&mut self, to_add: usize) {
         self.tot_bytes += to_add;
     }
-
+    /// Set the total number of packets exchanged
     pub fn set_tot_packets(&mut self, to_add: usize) {
         self.tot_packets += to_add;
     }
@@ -215,6 +238,12 @@ impl ConversationStats {
 
 /* -------- Conversation Key struct ---------*/
 #[derive(Debug, Eq, Hash, PartialEq, Copy, Clone)]
+/// Object containing the information that identify uniquely a Conversation.
+///   - *ip_srg*: Ip address of the source of the conversation
+///   - *ip_dest*: Ip address of the destination of the conversation
+///   -  *prt_srg*: Source Port
+///   -  *prt_dest*: Destination Port,
+///   -  *protocol*: Protocol used in the conversation,
 pub struct ConversationKey {
     ip_srg: IpAddr,
     ip_dest: IpAddr,
@@ -224,6 +253,12 @@ pub struct ConversationKey {
 }
 
 impl ConversationKey {
+    /// Create a new Conversation Key object instance and initialize its fields
+    ///   - *ip_srg*: Ip address of the source of the conversation
+    ///   - *ip_dest*: Ip address of the destination of the conversation
+    ///   -  *prt_srg*: Source Port
+    ///   -  *prt_dest*: Destination Port,
+    ///   -  *protocol*: Protocol used in the conversation,
     pub fn new_key(ip_srg: IpAddr,
                    ip_dest: IpAddr,
                    prt_srg: u16,
@@ -238,15 +273,27 @@ impl ConversationKey {
             protocol,
         };
     }
-
+    /// Get the source ip address
     pub fn get_ip_srg(&self) -> IpAddr{ return self.ip_srg}
+    /// Get the destination ip address
     pub fn get_ip_dest(&self) -> IpAddr{ return self.ip_dest}
+    /// Get the source port
     pub fn get_prt_srg(&self) -> u16{ return self.prt_srg}
+    /// Get the destination port
     pub fn get_prt_dest(&self) -> u16{ return self.prt_dest}
+    /// Get the protol
     pub fn get_protocol(&self) -> Protocol{ return self.protocol}
 }
 
 #[derive(Debug, Clone, Copy)]
+/// Filter object. It carries the information set by the user about which packet he/she is interested in seeing in the report
+/// All the fields of the filter object can be set to None (meaning 'Any' 'Not to be filtered based on this field').
+/// - *ip_srg*: a value different than None means that the user wants to see in the report only packets coming from *this* source ip address
+///  -   *ip_dest*: a value different than None means that the user wants to see in the report only packets going to *this* destination ip address
+///   -  *prt_srg*: a value different than None means that the user wants to see in the report only packets coming from *this* source port
+///    - *prt_dest*: a value different than None means that the user wants to see in the report only packets coming from *this* destination port
+///   -  *protocol*: a value different than None means that the user wants to see in the report only packets carrying *this* protocol
+
 pub struct Filter {
     ip_srg: Option<IpAddr>,
     ip_dest: Option<IpAddr>,
@@ -283,7 +330,8 @@ impl Display for Filter {
 }
 
 impl Filter {
-    pub fn new() -> Self {
+    /// Create a new Filter Object instance
+   pub fn new() -> Self {
         return Filter {
             ip_srg: None,
             ip_dest: None,
@@ -292,25 +340,35 @@ impl Filter {
             protocol: Protocol::None,
         };
     }
+    /// Set the source ip address on which filter out packets
     pub fn set_ip_srg(&mut self, ip: IpAddr) {
         self.ip_srg = Some(ip);
     }
+    /// Set the destination ip address on which filter out packets
     pub fn set_ip_dest(&mut self, ip: IpAddr) {
         self.ip_dest = Some(ip);
     }
+    /// Set the source port on which filter out packets
     pub fn set_prt_srg(&mut self, prt: u16) {
         self.prt_srg = Some(prt);
     }
+    /// Set the destination port on which filter out packets
     pub fn set_prt_dest(&mut self, prt: u16) {
         self.prt_dest = Some(prt);
     }
+
+    /// Set the protocol on which filter out packets
     pub fn set_protocol(&mut self, protocol: Protocol) {
         self.protocol = protocol;
     }
 
+    /// Get the source ip address on which filter out packets
     pub fn get_ip_srg(&self) -> Option<IpAddr> { return self.ip_srg}
+    /// Get the destination ip address on which filter out packets
     pub fn get_ip_dest(&self) -> Option<IpAddr> { return self.ip_dest}
+    /// Get the source port on which filter out packets
     pub fn get_prt_srg(&self) -> Option<u16> { return self.prt_srg}
+    /// Set the destination port on which filter out packets
     pub fn get_prt_dest(&self) -> Option<u16> { return self.prt_dest}
     //pub fn get_protocol(&self) -> Protocol{ return self.protocol}
 }
@@ -319,7 +377,7 @@ impl Filter {
 *  PROTOCOLS HANDLE FUNCTIONS
 *
 */
-
+/// Checks whether the packet carried by the Transport Layer Packet ('packet') is a DNS packet or not
 fn handle_dns_packet(packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) {
     match dns_parser::Packet::parse(packet) {
         Ok(_) => {
@@ -332,7 +390,7 @@ fn handle_dns_packet(packet: &[u8], new_packet_info: &mut PacketInfo, filter: &F
         Err(_) => {}
     }
 }
-
+/// Checks whether the packet carried by the Transport Layer Packet ('packet') is a TLS packet or not
 fn handle_tls_packet(packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) {
 
     if tls_parser::parse_tls_plaintext(packet).is_ok() || tls_parser::parse_tls_encrypted(packet).is_ok()
@@ -346,6 +404,7 @@ fn handle_tls_packet(packet: &[u8], new_packet_info: &mut PacketInfo, filter: &F
 
 }
 
+/// Function to handle an UDP packet parsing it accordingly
 fn handle_udp_packet(packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) {
     let udp = UdpPacket::new(packet);
 
@@ -360,27 +419,18 @@ fn handle_udp_packet(packet: &[u8], new_packet_info: &mut PacketInfo, filter: &F
             new_packet_info.set_printed();
         }
 
-        //se esiste il filtro ed è diverso dalla porta sorgente
-        /*
-        if filter.prt_srg.is_some() && filter.prt_srg.unwrap() != prt_srg {
-            new_packet_info.set_printed();
-        }
-        if filter.prt_dest.is_some() && filter.prt_dest.unwrap() != prt_dest {
-            new_packet_info.set_printed();
-        }
-
-         */
 
         PacketInfo::set_porta_sorgente(new_packet_info, prt_srg);
         PacketInfo::set_porta_destinazione(new_packet_info, prt_dest);
         PacketInfo::set_protocol(new_packet_info, Protocol::Udp);
 
         handle_dns_packet(udp.payload(), new_packet_info, filter);
-    } else {
-        println!("Malformed UDP Packet");
     }
+        //  else {
+   //     println!("Malformed UDP Packet");
+   // }
 }
-
+/// Function to handle an ICMPv4 packet parsing it accordingly
 fn handle_icmp_packet( packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) {
     let icmp_packet = IcmpPacket::new(packet);
 
@@ -390,27 +440,14 @@ fn handle_icmp_packet( packet: &[u8], new_packet_info: &mut PacketInfo, filter: 
         if filter.protocol == Protocol::IcmpV4 {
             new_packet_info.set_printed();
         }
-        /*
-        if new_packet_info.printed {
-            match icmp_packet.get_icmp_type() {
-                IcmpTypes::EchoReply => {
-                    let echo_reply_packet = echo_reply::EchoReplyPacket::new(packet).unwrap();
-                }
-                IcmpTypes::EchoRequest => {
-                    let echo_request_packet = echo_request::EchoRequestPacket::new(packet).unwrap();
-                }
-                _ => {
 
-                },
-            }
-        } else {}
-
-         */
-    } else {
-        println!("Malformed ICMP Packet");
     }
+   //  else {
+   //     println!("Malformed ICMP Packet");
+   // }
 }
 
+/// Function to handle an ICMPv6 packet parsing it accordingly
 fn handle_icmpv6_packet( packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) {
     let icmpv6_packet = Icmpv6Packet::new(packet);
 
@@ -420,11 +457,12 @@ fn handle_icmpv6_packet( packet: &[u8], new_packet_info: &mut PacketInfo, filter
         if filter.protocol == Protocol::IcmpV6 {
             new_packet_info.set_printed();
         }
-    } else {
-        println!("Malformed ICMPv6 Packet");
     }
+   // else {
+   //     println!("Malformed ICMPv6 Packet");
+   // }
 }
-
+/// Function to handle an TCP packet parsing it accordingly
 fn handle_tcp_packet( packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) {
     let tcp = TcpPacket::new(packet);
     if let Some(tcp) = tcp {
@@ -435,17 +473,6 @@ fn handle_tcp_packet( packet: &[u8], new_packet_info: &mut PacketInfo, filter: &
         if filter.protocol == Protocol::Tcp {
             new_packet_info.set_printed();
         }
-
-        //se esiste il filtro ed è diverso dalla porta sorgente
-        /*
-        if filter.prt_srg.is_some() && filter.prt_srg.unwrap() != prt_srg {
-            new_packet_info.set_printed();
-        }
-        if filter.prt_dest.is_some() && filter.prt_dest.unwrap() != prt_dest {
-            new_packet_info.set_printed();
-        }
-
-         */
 
         // Save them in the PacketInfo structure
         PacketInfo::set_porta_sorgente(new_packet_info, prt_srg);
@@ -458,69 +485,31 @@ fn handle_tcp_packet( packet: &[u8], new_packet_info: &mut PacketInfo, filter: &
         println!("Malformed TCP Packet");
     }
 }
-
+/// Function to handle a generic Transport Layer packet. Based on the type of protocol used it calls specific functions to handle it accordingly
 fn handle_transport_protocol(protocol: IpNextHeaderProtocol, packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) {
     match protocol {
         IpNextHeaderProtocols::Udp => {
-            //se il protocollo è udp ma il filtro è diverso da udp, dns o none -> il pacchetto va filtrato
-            /*match filter.protocol {
-                Protocol::Udp => {}
-                Protocol::Dns => {}
-                Protocol::None => {}
-                _ => { new_packet_info.set_printed() }
-            }
-
-             */
-            handle_udp_packet( packet, new_packet_info, filter)
+             handle_udp_packet( packet, new_packet_info, filter)
         }
         IpNextHeaderProtocols::Tcp => {
-            //se il protocollo è tcp ma il filtro è diverso da tcp, tls, dns o none -> il pacchetto va filtrato
-            /*
-            match filter.protocol {
-                Protocol::Tls => {}
-                Protocol::Tcp => {}
-                Protocol::Dns => {}
-                Protocol::None => {}
-                _ => { new_packet_info.set_printed(); }
-            }
-             */
-            handle_tcp_packet(packet, new_packet_info, filter)
+              handle_tcp_packet(packet, new_packet_info, filter)
         }
         IpNextHeaderProtocols::Icmp => {
-            //se il protocollo non è icmp -> va filtrato
-            /*
-            if filter.protocol != Protocol::IcmpV4 {
-                new_packet_info.set_printed();
-            }
 
-             */
             handle_icmp_packet(packet, new_packet_info, filter);
         }
         IpNextHeaderProtocols::Icmpv6 => {
-            //se il protocollo non è icmp -> va filtrato
-            /*
-            if filter.protocol != Protocol::IcmpV6 {
-                new_packet_info.set_printed();
-            }
 
-             */
             handle_icmpv6_packet( packet, new_packet_info, filter);
         }
-        IpNextHeaderProtocols::Pipe => {
-            //IP over IP
-            //TODO: handle filter PIPE
-            println!("PIPE");
-        }
-        IpNextHeaderProtocols::Igmp => {
-            //TODO: handle filter IGMP
-            println!("IGMP");
-        }
+
         _ => {
-            println!("Unknown transport level protocol {}!", protocol);
+
+            //println!("Unknown transport level protocol {}!", protocol);
         }
     }
 }
-
+/// Function to handle an IPV4 packet parsing it accordingly.
 fn handle_ipv4_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInfo, filter: &Filter) {
     let header = Ipv4Packet::new(ethernet.payload());
 
@@ -541,17 +530,10 @@ fn handle_ipv4_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInf
             new_packet_info.set_printed();
         }
 
-        /*
-        if filter.ip_srg.is_some() && filter.ip_srg.unwrap() != ip_sorg {
-            new_packet_info.set_printed();
-        }
-        if filter.ip_dest.is_some() && filter.ip_dest.unwrap() != ip_dest {
-            new_packet_info.set_printed();
-        }
-        */
 
         PacketInfo::set_ip_sorgente(new_packet_info, ip_sorg);
         PacketInfo::set_ip_destinazione(new_packet_info, ip_dest);
+
         handle_transport_protocol(
 
             header.get_next_level_protocol(),
@@ -559,11 +541,11 @@ fn handle_ipv4_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInf
             new_packet_info,
             filter,
         );
-    } else {
-        println!("Malformed IPv4 Packet");
-    }
+    } //else {
+       // println!("Malformed IPv4 Packet");
+    //}
 }
-
+/// Function to handle an ipv6 packet parsing it accordingly
 fn handle_ipv6_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInfo, filter: &Filter) {
     let header = Ipv6Packet::new(ethernet.payload());
 
@@ -596,11 +578,11 @@ fn handle_ipv6_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInf
             new_packet_info,
             filter,
         );
-    } else {
-        println!("Malformed IPv6 Packet");
-    }
+    } //else {
+        //println!("Malformed IPv6 Packet");
+    //}
 }
-
+/// Function to handle an ARP packet parsing it accordingly
 fn handle_arp_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInfo, filter: &Filter) {
     let header = ArpPacket::new(ethernet.payload());
 
@@ -613,30 +595,19 @@ fn handle_arp_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInfo
             new_packet_info.set_printed();
         }
 
-        /*
-        if filter.protocol != Protocol::None && filter.protocol != Protocol::Arp {
-            new_packet_info.set_printed();
-        }
-        if filter.ip_srg.is_some() && filter.ip_srg.unwrap() != ip_sorg {
-            new_packet_info.set_printed();
-        }
-        if filter.ip_dest.is_some() && filter.ip_dest.unwrap() != ip_dest {
-            new_packet_info.set_printed();
-        }
-         */
+
         PacketInfo::set_ip_sorgente(new_packet_info, ip_sorg);
         PacketInfo::set_ip_destinazione(new_packet_info, ip_dest);
         PacketInfo::set_protocol(new_packet_info, Protocol::Arp);
 
-    } else {
-        println!("Malformed ARP Packet");
-    }
+    } //else {
+      //  println!("Malformed ARP Packet");
+    //}
 }
 
+/// Function to handle an ethernet packet parsing it accordingly
 pub fn handle_ethernet_frame(ethernet: &EthernetPacket, new_packet_info: &mut PacketInfo, filter: &Filter) {
     PacketInfo::set_dim(new_packet_info, ethernet.packet().len());
-    //let dim_header = ethernet.packet().len() - ethernet.payload().len();
-    //println!("\n DIM_tot = {}, Dim_header = {}, protocol filtrato = {}", ethernet.packet().len(), dim_header, filter.protocol);
 
     // If there is no filter on the protocol, packet is set printed
     if filter.protocol == Protocol::None {
@@ -648,11 +619,12 @@ pub fn handle_ethernet_frame(ethernet: &EthernetPacket, new_packet_info: &mut Pa
         EtherTypes::Ipv6 => handle_ipv6_packet(ethernet, new_packet_info, filter),
         EtherTypes::Arp => handle_arp_packet(ethernet, new_packet_info, filter),
         _ => {
-            println!("unknown lvl 3 protocol");
+            //println!("unknown lvl 3 protocol");
         }
     }
 }
 
+/// Function to handle particular interfaces pointed out by the creators of 'Libpnet'
 pub fn handle_particular_interfaces(interface: &NetworkInterface, packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) -> bool {
     let mut buf: [u8; 1600] = [0u8; 1600]; //il frame ethernet è di 1518 byte -> sovradimensionato a 1600
     let mut new_ethernet_frame = MutableEthernetPacket::new(&mut buf[..]).unwrap();
