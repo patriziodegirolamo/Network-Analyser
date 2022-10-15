@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::fs::File;
-use std::io;
+use std::{io, thread};
 use std::sync::{Arc, Mutex};
-use std::sync::mpsc::{Receiver, Sender};
-use std::time::{SystemTime};
+use std::sync::mpsc::{channel, Receiver, RecvTimeoutError};
+use std::time::{Duration, SystemTime};
 use crate::packet_handle::{ConversationKey, ConversationStats, PacketInfo};
 use crate::{Filter,  Status, StatusValue};
 use tabled::{Table, Tabled, Style, Width, Modify, Disable};
@@ -49,7 +49,6 @@ impl ConvTabled{
 /// - *time_interval*: number of seconds before updating the report
 /// - *status_sniffing*: status of the application ['Running', 'Exit', 'Pause']
 /// - *receiver_channel*: receiver end of the channel shared with the Sniffer thread
-/// - *sender_timer*: sender end of the channel shared with the Timer thread.
 /// - *status_writing*: status shared with the Timer thread. When set to 'True' the reporter needs to update the report
 /// - *initial_time*: when the application began sniffing
 /// - *filter*: information on which packets the user is interested on see in the report
@@ -60,9 +59,7 @@ pub struct Reporter {
     status_sniffing: Arc<Status>,
     convs_summaries: HashMap<ConversationKey, ConversationStats>,
     convs_final: HashMap<ConversationKey, ConversationStats>,
-    //receiver channel to receive packet_infos from the sniffer
     receiver_channel: Receiver<PacketInfo>,
-    sender_timer: Sender<()>,
     status_writing: Arc<Mutex<bool>>,
     initial_time: SystemTime,
     filter: Filter,
@@ -74,8 +71,6 @@ impl Reporter {
     /// - *time_interval*: number of seconds before updating the report
     /// - *status_sniffing*: status of the application ['Running', 'Quit', 'Pause']
     /// - *receiver_channel*: receiver end of the channel shared with the Sniffer thread
-    /// - *sender_timer*: sender end of the channel shared with the Timer thread.
-    /// - *status_writing*: status shared with the Timer thread. When set to 'True' the reporter needs to update the report
     /// - *initial_time*: when the application began sniffing
     /// - *filter*: information on which packets the user is interested on see in the report
     pub fn new(filename: String,
@@ -83,8 +78,7 @@ impl Reporter {
                time_interval: usize,
                status_sniffing: Arc<Status>,
                receiver_channel: Receiver<PacketInfo>,
-               sender_timer: Sender<()>,
-               status_writing: Arc<Mutex<bool>>,
+               //status_writing: Arc<Mutex<bool>>,
                initial_time: SystemTime,
                filter: Filter,
     ) -> Self {
@@ -96,8 +90,8 @@ impl Reporter {
             convs_summaries: HashMap::new(),
             convs_final: HashMap::new(),
             receiver_channel,
-            sender_timer,
-            status_writing,
+
+            status_writing:Arc::new(Mutex::new(false)),
             initial_time,
             filter
         }
@@ -110,6 +104,28 @@ impl Reporter {
         let mut file = open_file(&self.filename).unwrap();
         let mut n_packets = 0;
         let mut write_titles = true;
+
+        // Create the thread Timer
+
+        // - Create a channel shared by the timer and the reporter to handle the close of the timer when the app goes in quit mode
+        let (snd_timer, rcv_timer) = channel();
+
+        // - Clone time interval to pass it to the timer
+        let time_interval = self.time_interval.clone();
+        // - Clone the writing status (shared by reporter and timer)
+        let status_writing = self.status_writing.clone();
+        // - Run the thread
+        let timer_handle = thread::spawn(move || {
+
+            // At each iteration wait at most 'time interval' seconds. If a packet is received before the timeout it means that the status got to 'Quit'
+            // so also the timer need to return.
+            // Otherwise 'time_interval' seconds passed so the timer sets the 'status_writing_value' to 'true' to notify the reporter to write the report.
+
+            timer(rcv_timer, time_interval, status_writing);
+
+        });
+
+
         loop {
 
             if !self.convs_summaries.is_empty() // If there are conversation to write
@@ -161,9 +177,7 @@ impl Reporter {
                             println!("Scrivo su report!");
                             write_summaries(&mut file, &self.convs_summaries, &self.initial_time, &self.time_interval, false);
                         }
-                        println!("Reporter exit, TOT Packets: {}", n_packets);
-                        // Alert the timer thread
-                        self.sender_timer.send(()).unwrap();
+
 
                         // Writes all conversations in final report
                         println!("Write final report");
@@ -172,6 +186,13 @@ impl Reporter {
                             &mut final_file,
                             &self.convs_final
                         );
+                        // Alert the timer thread
+                        println!("reporter notifies the timer and waits until it returns");
+                        snd_timer.send(()).unwrap();
+                        // Wait the conclusion of the timer handle
+                        timer_handle.join().unwrap();
+
+                        println!("Reporter exit, TOT Packets: {}", n_packets);
 
                         return;
                     }
@@ -222,7 +243,27 @@ impl Reporter {
         }
     }
 }
+/// Timer function. At each iteration it waits at most 'time interval' seconds. If a packet is received before the timeout it means that the status got to 'Quit'
+/// so also the timer need to return.
+/// Otherwise 'time_interval' seconds passed so the timer sets the 'status_writing_value' to 'true' to notify the reporter to write the report.
+fn timer(rcv_timer: Receiver<()>, time_interval: usize, status_writing: Arc<Mutex<bool>>)
+{
+    loop {
+         match rcv_timer.recv_timeout(Duration::from_secs(time_interval as u64)) {
+            Ok(_) => {
+                println!("Timer exit");
+                break;
+            },
+            Err(err) =>
+                if err == RecvTimeoutError::Timeout {
+                    let mut status_writing_value = status_writing.lock().unwrap();
+                    *status_writing_value = true;
+                    println!("Time to update the report");
+                }
+        }
+    }
 
+}
 /// It checks if the given packet_info needs to be filtered.
 fn check_filter(filter: Filter, packet_info: PacketInfo) -> bool {
     if filter.get_ip_srg().is_some() &&
