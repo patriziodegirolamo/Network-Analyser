@@ -7,7 +7,6 @@ use std::fmt::{Display, Formatter};
 use std::io;
 use std::io::Write;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-use std::ops::Add;
 use std::sync::{Arc, Condvar, Mutex};
 use std::sync::mpsc::{channel};
 use packet_handle::{Filter};
