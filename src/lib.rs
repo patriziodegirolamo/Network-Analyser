@@ -176,7 +176,7 @@ impl NetworkAnalyser {
 
         // Run the thread sniffer
         self.sniffer_handle = Some(thread::spawn(move || {
-            let mut sniffer = Sniffer::new(interface, filter,snd_sniffer, rcv_interface, status_sniffer, time_sniffer);
+            let sniffer = Sniffer::new(interface, filter,snd_sniffer, rcv_interface, status_sniffer, time_sniffer);
             sniffer.sniffing();
         }));
 
@@ -218,7 +218,7 @@ impl NetworkAnalyser {
         let time_reporter = time.clone();
         // - Run the reporter thread
         self.reporter_handle = Some(thread::spawn(move || {
-            let mut reporter = Reporter::new(
+            let reporter = Reporter::new(
                 filename,
                 final_filename,
                 time_interval,
@@ -229,6 +229,7 @@ impl NetworkAnalyser {
                 time_reporter,
                 filter);
             reporter.reporting();
+
         }));
 
         println!("**** SNIFFING... ");

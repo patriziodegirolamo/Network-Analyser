@@ -44,10 +44,10 @@ impl ConvTabled{
 /// Reporter object. It gets 'PacketInfo's from the 'Sniffer' object through the 'receiver_channel'.
 /// Every 'time_interval' seconds it prints on the 'filename' file the report of the conversations happened in the last time interval.
 /// In 'pause' mode stops taking packets from the channel and stops updating the report.
-/// In 'quit' mode writes on the report the last update and creates a final report with all the conversations happened.
+/// In 'exit' mode writes on the report the last update and creates a final report with all the conversations happened.
 /// - *filename*: name of the report file (.exe)
 /// - *time_interval*: number of seconds before updating the report
-/// - *status_sniffing*: status of the application ['Running', 'Quit', 'Pause']
+/// - *status_sniffing*: status of the application ['Running', 'Exit', 'Pause']
 /// - *receiver_channel*: receiver end of the channel shared with the Sniffer thread
 /// - *sender_timer*: sender end of the channel shared with the Timer thread.
 /// - *status_writing*: status shared with the Timer thread. When set to 'True' the reporter needs to update the report
@@ -104,9 +104,8 @@ impl Reporter {
     }
     /// Function used to perform the reporting.
     /// It can be called only once. It returns when the status goes to 'Quit'.
-    pub fn reporting(&mut self) {
+    pub fn reporting(mut self) {
         let mut status = StatusValue::Exit;
-        //TODO: impostare che può essere chiamata solo una voltaaaa
         //TODO: spostare la open nello start e gestire errore
         let mut file = open_file(&self.filename).unwrap();
         let mut n_packets = 0;
@@ -144,11 +143,17 @@ impl Reporter {
                     }
                     StatusValue::Paused => {
                         println!("Reporter is paused");
-                        status = StatusValue::Paused;
-                        // Conditional waiting until the status get back to "running" or is set to "quit"
+
+                        // Conditional waiting until the status get back to "running" or is set to "exit"
                         status_sniffing_value = self.status_sniffing.cvar.wait_while(status_sniffing_value, |s| is_paused(&*s)).unwrap();
 
-                        assert_eq!(*status_sniffing_value, StatusValue::Running);
+                        status = *status_sniffing_value;
+                        // Here the status is either running or exit
+                        assert_ne!(status, StatusValue::Paused);
+
+                        if status == StatusValue::Exit{
+                            continue;
+                        }
                         // status running
                     }
                     StatusValue::Exit => {
@@ -219,7 +224,6 @@ impl Reporter {
 }
 
 /// It checks if the given packet_info needs to be filtered.
-///
 fn check_filter(filter: Filter, packet_info: PacketInfo) -> bool {
     if filter.get_ip_srg().is_some() &&
         packet_info.get_ip_sorgente().unwrap() != filter.get_ip_srg().unwrap() {
