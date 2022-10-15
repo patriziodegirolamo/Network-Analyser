@@ -7,6 +7,7 @@ use std::fmt::{Display, Formatter};
 use std::io;
 use std::io::Write;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::ops::Add;
 use std::sync::{Arc, Condvar, Mutex};
 use std::sync::mpsc::{channel};
 use packet_handle::{Filter};
@@ -137,7 +138,9 @@ impl NetworkAnalyser {
         self.interface = get_interface()?;
         self.time_interval = get_time_interval(self.time_interval)?;
         self.filename = get_file_name(&*self.filename)?;
-        self.final_filename = "final_"+self.filename.to_string();
+        self.final_filename = self.filename.clone();
+        self.final_filename.insert_str(0, "final_");
+
         self.filter= get_filter()?;
 
         println!();
