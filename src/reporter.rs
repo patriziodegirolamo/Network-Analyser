@@ -114,21 +114,25 @@ impl Reporter {
         loop {
 
             if !self.convs_summaries.is_empty() // If there are conversation to write
-            {   
+            {   // Get the lock and check if its time to update the report (status set to true)
                 let mut status_writing_value = self.status_writing.lock().unwrap();
+
                 if *status_writing_value == true {
                     println!("Scrivo su report!");
+                    // Set to false the status value
                     *status_writing_value = false;
-                    //simple_write(&self, &mut file);
+                    // Perform the update
                     write_summaries(&mut file, &self.convs_summaries, &self.initial_time, &self.time_interval, write_titles);
+                    // Write titles only the first time.
                     if write_titles {
                         write_titles = false;
                     }
+                    // Clear out the hash map
                     self.convs_summaries.clear();
                 }
             }
 
-            {
+            {  // Check the sniffing value getting the lock
                 let mut status_sniffing_value = self.status_sniffing.mutex.lock().unwrap();
 
                 match *status_sniffing_value {
@@ -141,6 +145,7 @@ impl Reporter {
                     StatusValue::Paused => {
                         println!("Reporter is paused");
                         status = StatusValue::Paused;
+                        // Conditional waiting until the status get back to "running" or is set to "quit"
                         status_sniffing_value = self.status_sniffing.cvar.wait_while(status_sniffing_value, |s| is_paused(&*s)).unwrap();
 
                         assert_eq!(*status_sniffing_value, StatusValue::Running);
@@ -167,10 +172,13 @@ impl Reporter {
                     }
                 }
             }
-            //SE E' ARRIVATO QUI, LO STATUS E' RUNNING
 
+            // Code reached only in running mode
+            assert_eq!(status, StatusValue::Running);
+
+            // Get a new packet_info from the channel (if its there)
             while let Ok(new_packet_info) = self.receiver_channel.try_recv(){
-
+                // If the packet does not need to be filtered out add it in the hashmap
                 if new_packet_info.get_printed() && check_filter(self.filter, new_packet_info.clone()){
                     n_packets += 1;
                     // Create the key of the packet considering (ip_sorg, ip_dest, port_sorg, port_dest, prot)
@@ -272,7 +280,6 @@ fn write_summaries(file: &mut File, convs_summaries: &HashMap<ConversationKey, C
         let end = conv.1.get_ending_time().unwrap();
         let start_format = format!("{}.{} secs", start.as_secs(), start.as_millis());
         let end_format = format!("{}.{} secs", end.as_secs(), end.as_millis());
-        //TODO: gestire porta nulla (zero) e ip (None)
 
         // handle default values => replace with "-"
         let prt_src;
