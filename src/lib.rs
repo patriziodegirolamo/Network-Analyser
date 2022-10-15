@@ -67,8 +67,8 @@ impl Status {
     }
 }
 
-/// NetworkAnalyser object. It manages all the sniffing process creating two threads: the Sniffer and the Reporter.
-///
+/// NetworkAnalyser object. It manages all the sniffing process by creating two threads: the Sniffer and the Reporter.
+/// The user can control the process by using the functions pause(), resume(), quit()
 pub struct NetworkAnalyser {
     interface: NetworkInterface,
     time_interval: usize,
@@ -94,6 +94,12 @@ impl Display for NetworkAnalyser {
 }
 
 impl NetworkAnalyser {
+    /// Create a new instance of the NetworkAnalyser and set default values to its fields
+    /// - Network Interface: selected the first one.
+    /// - Time interval: 5 sec
+    /// - Report file name: "report.txt"
+    /// - Final report file name: "final_report.txt"
+    /// - Filter: empty. No filter
     pub fn new() -> Self {
         let dft_interface = select_device_by_name(find_my_device_name(0));
         let dft_time_interval = 5;
@@ -115,7 +121,9 @@ impl NetworkAnalyser {
         };
     }
 
-    /// Function used to initialise the Network Analyser with custom values. If an error occours it returns an ErrorNetworkAnalyser describing what happen. Otherwise it returns void.
+    /// Function used to initialise the Network Analyser with custom values.
+    /// If an error occours it returns an ErrorNetworkAnalyser describing what happen.
+    /// Otherwise it returns void.
     pub fn init(&mut self) -> Result<(), ErrorNetworkAnalyser> {
 
         println!();
@@ -129,6 +137,7 @@ impl NetworkAnalyser {
         self.interface = get_interface()?;
         self.time_interval = get_time_interval(self.time_interval)?;
         self.filename = get_file_name(&*self.filename)?;
+        self.final_filename = "final_"+self.filename.to_string();
         self.filter= get_filter()?;
 
         println!();
@@ -140,6 +149,9 @@ impl NetworkAnalyser {
         return Ok(());
     }
 
+    /// Start the NetworkAnalyser.
+    /// It can return an ErrorNetworkAnalyser if an error occours during the process.
+    /// Otherwise it returns void and it means that the process is running.
     pub fn start(&mut self) -> Result<(), ErrorNetworkAnalyser> {
         let mut conf = Config::default();
         conf.read_buffer_size = 1000000;
@@ -198,7 +210,8 @@ impl NetworkAnalyser {
 
         return Ok(());
     }
-
+    /// Pause the network analyser
+    /// If the process is already in 'Pause' mode then it returns an error.
     pub fn pause(&mut self) -> Result<(), ErrorNetworkAnalyser> {
         let mut status_value = self.status.mutex.lock().unwrap();
 
@@ -211,7 +224,8 @@ impl NetworkAnalyser {
         return Ok(());
     }
 
-
+    /// Quit the process.
+    /// It puts the application in 'Exit' state.
     pub fn quit(&mut self) -> Result<(), ErrorNetworkAnalyser> {
         {
             let mut status_value = self.status.mutex.lock().unwrap();
@@ -244,6 +258,8 @@ impl NetworkAnalyser {
         return Ok(());
     }
 
+    /// Resume the process. It wakes up the Reporter and the Sniffer and the process continues.
+    /// It returns an error if the process is already running.
     pub fn resume(&mut self) -> Result<(), ErrorNetworkAnalyser> {
         let mut status_value = self.status.mutex.lock().unwrap();
 
@@ -260,10 +276,9 @@ impl NetworkAnalyser {
 }
 
 
-/**
-Print the name and the description of all the network interfaces found
-and returns the total number of interfaces found
- */
+
+///Print the names and the descriptions of all the network interfaces found
+///and returns the total number of interfaces found
 fn print_devices() -> usize {
     let interfaces = pnet_datalink::interfaces();
     let tot = interfaces.len();
@@ -275,17 +290,16 @@ fn print_devices() -> usize {
     return tot;
 }
 
-/**
-Select a specific network interface given the name
-it panics if the name is invalid or if there is no network interface with this name
- */
+
+///Select a specific network interface given the name
+///it panics if the name is invalid or if there is no network interface with this name
 fn select_device_by_name(name: String) -> NetworkInterface {
     let interfaces = pnet_datalink::interfaces();
     let chosen_interface = interfaces
         .into_iter()
         .filter(|inter| inter.name == name)
         .next()
-        .unwrap_or_else(|| panic!("No such network interface: {}", name));
+        .unwrap_or_else(|| panic!("No such network interface: {}", name)); // this status should not be reachable
 
     return chosen_interface;
 }
@@ -296,7 +310,8 @@ fn find_my_device_name(index: usize) -> String {
 
 
 
-
+/// It asks the user to select the NetworkInterface she/he wants to sniff.
+/// If an error occours it returns an ErrorNetworkAnalyser, otherwise it returns the NetworkInterface
 fn get_interface() -> Result<NetworkInterface, ErrorNetworkAnalyser>
 {
     println!("> Which of the following interfaces you want to sniff?");
@@ -342,9 +357,11 @@ fn get_interface() -> Result<NetworkInterface, ErrorNetworkAnalyser>
     }
 }
 
+/// It asks the user to select how often (seconds) he/she wants the report to be updated
+/// If an error occours it returns an ErrorNetworkAnalyser, otherwise it returns the time_interval
 fn get_time_interval(default: usize) -> Result<usize, ErrorNetworkAnalyser>
 {
-    println!("> Please, insert a time interval. [Press X to exit.] [ENTER to set keep default value of {} ]", default);
+    println!("> Please, insert a time interval. We will update the report every 'time_interval' seconds. [Press X to exit.] [ENTER to set keep default value of {} ]", default);
 
     let mut time_interval_str = String::new();
 
@@ -378,6 +395,9 @@ fn get_time_interval(default: usize) -> Result<usize, ErrorNetworkAnalyser>
     }
 }
 
+
+/// It asks the user to select the name of the file where the report needs to be written.
+/// If an error occours it returns an ErrorNetworkAnalyser, otherwise it returns the filename
 fn get_file_name(default: &str)-> Result<String, ErrorNetworkAnalyser>
 {
     println!("> Please, insert the name of the file where we will save the report in \".txt\" format. [Press X to exit.] [Enter to keep the default name: {}]", default);
@@ -417,6 +437,8 @@ fn get_file_name(default: &str)-> Result<String, ErrorNetworkAnalyser>
     }
 }
 
+/// It asks the user to select the Filter she/he wants to add to the sniffing process.
+/// If an error occours it returns an ErrorNetworkAnalyser, otherwise it returns the Filter
 fn get_filter()-> Result<Filter, ErrorNetworkAnalyser>
 {
     println!("> Do you want to set a filter? [Y, N]");
@@ -625,7 +647,7 @@ fn get_filter()-> Result<Filter, ErrorNetworkAnalyser>
 
 
 
-
+/// It returns true if ip_str is a valide ip address, false otherwise
 fn validate_ip_address(ip_str: String) -> Result<IpAddr, String> {
     let vec_ip4: Vec<&str> = ip_str.split(".").map(|x| x).collect();
     let vec_ip6: Vec<&str> = ip_str.split(":").map(|x| x).collect();
