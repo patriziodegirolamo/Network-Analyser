@@ -8,7 +8,6 @@ use crate::packet_handle::{ConversationKey, ConversationStats, PacketInfo};
 use crate::{Filter, Protocol, Status, StatusValue};
 use tabled::{Table, Tabled, Style, Width, Modify, Disable, Alignment, Extract};
 use tabled::object::{ Columns,  Object, Segment};
-//use tabled::style::Border;
 use std::io::Write;
 use tabled::formatting_settings::TrimStrategy;
 
@@ -79,7 +78,6 @@ impl Reporter {
                time_interval: usize,
                status_sniffing: Arc<Status>,
                receiver_channel: Receiver<PacketInfo>,
-               //status_writing: Arc<Mutex<bool>>,
                initial_time: SystemTime,
                filter: Filter,
     ) -> Self {

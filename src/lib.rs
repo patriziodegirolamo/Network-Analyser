@@ -2,6 +2,7 @@ mod packet_handle;
 mod sniffer;
 mod reporter;
 
+use pcap::{Active, Capture, Device};
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::io;
@@ -10,12 +11,11 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::sync::{Arc, Condvar, Mutex};
 use std::sync::mpsc::{channel};
 use packet_handle::{Filter};
-use pnet_datalink::{Channel, Config, NetworkInterface};
 use std::thread::{self, JoinHandle};
 use std::time::{SystemTime};
 use enum_iterator::all;
 use regex::Regex;
-use crate::packet_handle::{Protocol};
+use crate::packet_handle::{PacketInfo, Protocol};
 use crate::reporter::Reporter;
 use crate::sniffer::Sniffer;
 
@@ -70,7 +70,7 @@ impl Status {
 /// NetworkAnalyser object. It manages all the sniffing process by creating two threads: the Sniffer and the Reporter.
 /// The user can control the process by using the functions pause(), resume(), quit()
 pub struct NetworkAnalyser {
-    interface: NetworkInterface,
+    interface: Device,
     time_interval: usize,
     filename: String,
     final_filename: String,
@@ -83,7 +83,7 @@ pub struct NetworkAnalyser {
 
 impl Display for NetworkAnalyser {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "> NETWORK ANALYSER SETTINGS: \n\n\
+        write!(f, "> NETWORK ANALYSER: \n\n\
                    >> Interface: {}; \n\
                    >> Time Interval: {} secs; \n\
                    >> Filename: '{}'; \n\
@@ -116,8 +116,6 @@ impl NetworkAnalyser {
             sniffer_handle: None,
             reporter_handle: None,
             status: Arc::new(Status::new()),
-
-
         };
     }
 
@@ -153,17 +151,9 @@ impl NetworkAnalyser {
 
     /// Start the NetworkAnalyser.
     /// It can return an ErrorNetworkAnalyser if an error occours during the process.
-    /// Otherwise it returns an instance of NetworkAnalyser and it means that process is running.
-    pub fn start(mut self) -> Result<NetworkAnalyser, ErrorNetworkAnalyser> {
-        let mut conf = Config::default();
-        conf.read_buffer_size = 1000000;
-        conf.write_buffer_size = 1000000;
-
-        let (_, rcv_interface) = match pnet_datalink::channel(&self.interface, conf) {
-            Ok(Channel::Ethernet(tx, rx)) => (tx, rx),
-            Ok(_) => return Err(ErrorNetworkAnalyser::ErrorNa("Error: unhandled channel type".to_string())),
-            Err(e) => return Err(ErrorNetworkAnalyser::ErrorNa("Error:unable to create channel".to_owned() + &e.to_string())),
-        };
+    /// Otherwise it returns void and it means that the process is running.
+    pub fn start(&mut self) -> Result<(), ErrorNetworkAnalyser> {
+        let rcv_channel = activate_capture(&self.interface)?;
 
         // Record initial time
         let time = SystemTime::now();
@@ -182,7 +172,7 @@ impl NetworkAnalyser {
 
         // Run the thread sniffer
         self.sniffer_handle = Some(thread::spawn(move || {
-            let sniffer = Sniffer::new(interface, filter,snd_sniffer, rcv_interface, status_sniffer, time_sniffer);
+            let sniffer = Sniffer::new(interface, filter,snd_sniffer, rcv_channel, status_sniffer, time_sniffer);
             sniffer.sniffing();
         }));
 
@@ -214,18 +204,7 @@ impl NetworkAnalyser {
 
         println!("**** SNIFFING... ");
 
-        return Ok(Self {
-            interface: self.interface,
-            time_interval: self.time_interval,
-            filename: self.filename,
-            final_filename: self.final_filename,
-            filter: self.filter,
-            sniffer_handle: self.sniffer_handle,
-            reporter_handle:self.reporter_handle,
-            status: self.status
-
-
-        });
+        return Ok(());
     }
     /// Pause the network analyser
     /// If the process is already in 'Pause' mode then it returns an error.
@@ -294,24 +273,30 @@ impl NetworkAnalyser {
 
 
 
-///Print the names and the descriptions of all the network interfaces found
-///and returns the total number of interfaces found
-fn print_devices() -> usize {
-    let interfaces = pnet_datalink::interfaces();
+/// Print the names and the descriptions of all the network interfaces found
+/// and returns the total number of interfaces found
+/// if an error occurs, it returns an instance of ErrorNetworkAnalyser!
+fn print_devices() -> Result<usize, ErrorNetworkAnalyser> {
+
+    let interfaces = match Device::list(){
+        Ok(_interfaces) => _interfaces,
+        Err(err) => return Err(ErrorNetworkAnalyser::ErrorNa(err.to_string()))
+    };
+
     let tot = interfaces.len();
 
     for (i, inter) in interfaces.into_iter().enumerate() {
-        println!("> {}:   {:?} {:?}", i, inter.name, inter.description);
+        println!("> {}:   {:?} {:?}", i, inter.name, inter.desc.unwrap_or_else(|| "-".to_string()));
     }
 
-    return tot;
+    return Ok(tot);
 }
 
 
 ///Select a specific network interface given the name
 ///it panics if the name is invalid or if there is no network interface with this name
-fn select_device_by_name(name: String) -> NetworkInterface {
-    let interfaces = pnet_datalink::interfaces();
+fn select_device_by_name(name: String) -> Device {
+    let interfaces = Device::list().unwrap();
     let chosen_interface = interfaces
         .into_iter()
         .filter(|inter| inter.name == name)
@@ -321,18 +306,20 @@ fn select_device_by_name(name: String) -> NetworkInterface {
     return chosen_interface;
 }
 
+/// given the index of the device in the devices list, it returns its name
 fn find_my_device_name(index: usize) -> String {
-    return pnet_datalink::interfaces().get(index).unwrap().clone().name;
+    let list: Vec<Device> = Device::list().unwrap();
+    return list[index].name.clone();
 }
 
 
 
-/// It asks the user to select the NetworkInterface she/he wants to sniff.
-/// If an error occours it returns an ErrorNetworkAnalyser, otherwise it returns the NetworkInterface
-fn get_interface() -> Result<NetworkInterface, ErrorNetworkAnalyser>
+/// It asks the user to select the Device she/he wants to sniff.
+/// If an error occurs it returns an ErrorNetworkAnalyser, otherwise it returns the Device
+fn get_interface() -> Result<Device, ErrorNetworkAnalyser>
 {
     println!("> Which of the following interfaces you want to sniff?");
-    let tot_interfaces = print_devices();
+    let tot_interfaces = print_devices()?;
 
     let mut my_index_str = String::new();
 
@@ -356,7 +343,7 @@ fn get_interface() -> Result<NetworkInterface, ErrorNetworkAnalyser>
 
                             println!("> Ok, you selected:  {:?}", dev_name);
                             let interface = select_device_by_name(dev_name);
-                            println!("> Setting the interface in promiscous mode... "); // The promiscous mode is the default configuration (line 167 file lib.rs in pnet-datalink module)
+                            println!("> Setting the interface in promiscous mode... ");
                             return Ok(interface);
                         } else {
                             println!("> [Error]: please select a valid number. Try Again.");
@@ -706,4 +693,28 @@ fn validate_ip_address(ip_str: String) -> Result<IpAddr, String> {
         }
     }
     return Err("It is not an IPV4 or IPV6 address".to_string());
+}
+
+/// Given a device, it returns the Channel from which the sniffer gets the level2 packets.
+/// also, it sets the interface in promiscous mode,
+/// the capture as an online and non blocking capture
+pub fn activate_capture(device: &Device) -> Result<Capture<Active>, ErrorNetworkAnalyser>{
+
+    let mut cap = match Capture::from_device(device.clone()){
+        Ok(cap) => cap,
+        Err(err) => return Err(ErrorNetworkAnalyser::ErrorNa(err.to_string()))
+    };
+    cap = cap.promisc(true);
+
+    let act_cap = match cap.open() {
+        Ok(act) => act,
+        Err(err) => return Err(ErrorNetworkAnalyser::ErrorNa(err.to_string()))
+    };
+
+    let non_block = match act_cap.setnonblock(){
+        Ok(n_blk) => n_blk,
+        Err(err) => return Err(ErrorNetworkAnalyser::ErrorNa(err.to_string()))
+    };
+
+    return Ok(non_block);
 }
