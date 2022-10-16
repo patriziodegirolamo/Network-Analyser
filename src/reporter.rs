@@ -132,7 +132,7 @@ impl Reporter {
                 let mut status_writing_value = self.status_writing.lock().unwrap();
 
                 if *status_writing_value == true {
-                    println!("Scrivo su report!");
+                    println!("> Updating the report with {} conversations happened in the last time interval...", self.convs_summaries.len());
                     // Set to false the status value
                     *status_writing_value = false;
                     // Perform the update
@@ -150,14 +150,10 @@ impl Reporter {
                 let mut status_sniffing_value = self.status_sniffing.mutex.lock().unwrap();
 
                 match *status_sniffing_value {
-                    StatusValue::Running => {
-                        if status != StatusValue::Running {
-                            println!("Reporter is running");
-                            status = StatusValue::Running;
-                        }
-                    }
+                    StatusValue::Running =>  status = StatusValue::Running,
+
+
                     StatusValue::Paused => {
-                        println!("Reporter is paused");
 
                         // Conditional waiting until the status get back to "running" or is set to "exit"
                         status_sniffing_value = self.status_sniffing.cvar.wait_while(status_sniffing_value, |s| is_paused(&*s)).unwrap();
@@ -173,25 +169,24 @@ impl Reporter {
                     }
                     StatusValue::Exit => {
                         if !self.convs_summaries.is_empty() {// Before exit update the report one last time and produces final report
-                            println!("Scrivo su report!");
+                            println!("> Update report...");
                             write_summaries(&mut file, &self.convs_summaries, &self.initial_time, &self.time_interval, false);
                         }
 
 
                         // Writes all conversations in final report
-                        println!("Write final report");
+                        println!("> Writing final report in {} ...", self.final_filename);
                         let mut final_file = open_file(&self.final_filename).unwrap();
                         write_final_report(
                             &mut final_file,
                             &self.convs_final
                         );
                         // Alert the timer thread
-                        println!("reporter notifies the timer and waits until it returns");
                         snd_timer.send(()).unwrap();
                         // Wait the conclusion of the timer handle
                         timer_handle.join().unwrap();
 
-                        println!("Reporter exit, TOT Packets: {}", n_packets);
+                        println!("> EXIT. TOT Packets sniffed: {}", n_packets);
 
                         return;
                     }
@@ -250,14 +245,12 @@ fn timer(rcv_timer: Receiver<()>, time_interval: usize, status_writing: Arc<Mute
     loop {
          match rcv_timer.recv_timeout(Duration::from_secs(time_interval as u64)) {
             Ok(_) => {
-                println!("Timer exit");
                 break;
             },
             Err(err) =>
                 if err == RecvTimeoutError::Timeout {
                     let mut status_writing_value = status_writing.lock().unwrap();
                     *status_writing_value = true;
-                    println!("Time to update the report");
                 }
         }
     }

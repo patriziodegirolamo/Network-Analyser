@@ -17,7 +17,7 @@ fn main() {
 
     match na.start() // Start the process
     {
-        Ok(n) => {na = n;}
+        Ok(_) => {}
         Err(e) => {
             println!("{}", e);
             return;}
@@ -26,7 +26,7 @@ fn main() {
     // Handle user commands
     let mut cmd = String::new();
     loop {
-        print!(">> Command: [P to pause] [R to resume] [X to exit]  ");
+        println!(">> Possible commands: [P to pause] [R to resume] [X to exit]  ");
         io::stdout().flush().expect("Error");
         cmd.clear();
 
