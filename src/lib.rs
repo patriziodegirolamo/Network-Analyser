@@ -13,7 +13,6 @@ use std::sync::mpsc::{channel};
 use packet_handle::{Filter};
 use std::thread::{self, JoinHandle};
 use std::time::{SystemTime};
-use enum_iterator::all;
 use regex::Regex;
 use crate::packet_handle::{PacketInfo, Protocol};
 use crate::reporter::Reporter;
@@ -604,7 +603,21 @@ fn get_filter()-> Result<Filter, ErrorNetworkAnalyser>
 
     println!("> Filter on this protocol:  [Press ENTER to skip.] [Press X to exit.]");
     println!("> Possible protocols. Select the index: ");
-    let protocols: Vec<Protocol> = all::<Protocol>().collect::<Vec<_>>();
+    let protocols: Vec<Protocol> = vec![
+        Protocol::Ethernet,
+        Protocol::Arp,
+        Protocol::IpV4,
+        Protocol::IpV6,
+        Protocol::Udp,
+        Protocol::Tcp,
+        Protocol::IcmpV4,
+        Protocol::IcmpV6,
+        Protocol::Dns,
+        Protocol::Tls,
+        Protocol::Http,
+        Protocol::Https,
+        Protocol::None
+    ];
     for (ind, tmp) in protocols.iter().enumerate() {
         if *tmp != Protocol::None { println!("> {}: {}", ind, tmp); }
     }

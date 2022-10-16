@@ -1,6 +1,5 @@
 extern crate pnet;
 
-use enum_iterator::Sequence;
 use std::fmt::{Display, Formatter};
 use pnet::packet::arp::{ArpPacket};
 use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
@@ -22,7 +21,7 @@ use pcap::Device;
 
 /* -------- Protocol enum ---------*/
 /// All possible Protocols that can be handled by the applications.
-#[derive(Sequence, Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum Protocol {
     Ethernet = 0,
     Arp,
