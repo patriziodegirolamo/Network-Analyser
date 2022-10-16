@@ -1,9 +1,9 @@
 use std::collections::HashSet;
 use std::sync::{Arc};
 use std::sync::mpsc::Sender;
-use pnet_datalink::{DataLinkReceiver, NetworkInterface};
 use pnet::packet::ethernet::{EthernetPacket};
 use std::time::{SystemTime};
+use pcap::{Active, Capture, Device};
 use crate::packet_handle::PacketInfo;
 use crate::{Filter, packet_handle, Protocol, Status, StatusValue};
 
@@ -18,13 +18,13 @@ use crate::{Filter, packet_handle, Protocol, Status, StatusValue};
 ///     - *status*: status of the application ['Running', 'Exit', 'Pause']
 ///     - *time*: time on which the application started
 pub struct Sniffer {
-    interface: NetworkInterface,
+    interface: Device,
     filter: Filter,
     //sender channel to send packet_infos to the reporter
     sender_channel: Sender<PacketInfo>,
 
     //receiver channel to receive raw_packet from the lvl2 interface
-    receiver_channel: Box<dyn DataLinkReceiver>,
+    receiver_channel: Capture<Active>,
 
     status: Arc<Status>,
     time: SystemTime,
@@ -32,13 +32,13 @@ pub struct Sniffer {
 
 impl Sniffer {
     /// Create a new instance of the Sniffer object
-    ///     - *interface*: Network interface,
+    ///     - *interface*: Network Interface,
     ///     - *filter*: filter selected by the user. The sniffing process needs to take it in consideration.
     ///     - *sender_channel*: sender end of the channel shared with the reporter. The sniffer sends a 'PacketInfo' for each packet that gets from the interface
     ///     - *receiver_channel*: receiver end of the channel shared with the network interface. From this channel the Sniffer gets raw packets.
     ///     - *status*: status of the application ['Running', 'Exit', 'Pause']
     ///     - *time*: time on which the application started
-    pub fn new(interface: NetworkInterface, filter: Filter, sender_channel: Sender<PacketInfo>, receiver_channel: Box<dyn DataLinkReceiver>, status: Arc<Status>, time: SystemTime) -> Self {
+    pub fn new(interface: Device, filter: Filter, sender_channel: Sender<PacketInfo>, receiver_channel: Capture<Active>, status: Arc<Status>, time: SystemTime) -> Self {
         Self { interface, filter, sender_channel, receiver_channel, status, time }
     }
 
@@ -56,9 +56,10 @@ impl Sniffer {
 
         loop {
             // Get a packet from the interface
-            match self.receiver_channel.next() { //TODO: se non arrivano pacchetti rimane bloccato qua!!!
+            match self.receiver_channel.next_packet() { //TODO: se non arrivano pacchetti rimane bloccato qua!!!
 
                 Ok(packet) => {
+                    println!("{}", packet.header.len);
                     {  // Check the status of the application
                         let status_value = self.status.mutex.lock().unwrap();
                         status = *status_value;
@@ -76,8 +77,8 @@ impl Sniffer {
                             PacketInfo::set_time(&mut new_packet_info, initial_time);
 
                             // Handle particular interfaces
-                            if !packet_handle::handle_particular_interfaces(&self.interface, packet, &mut new_packet_info, &self.filter) {
-                                packet_handle::handle_ethernet_frame(&EthernetPacket::new(packet).unwrap(), &mut new_packet_info, &self.filter);
+                            if !packet_handle::handle_particular_interfaces(&self.interface, packet.data, &mut new_packet_info, &self.filter) {
+                                packet_handle::handle_ethernet_frame(&EthernetPacket::new(packet.data).unwrap(), &mut new_packet_info, &self.filter);
                             }
                             buffer_packets.push(new_packet_info.clone());
                             // Send the packet info to the Sniffer
@@ -90,7 +91,11 @@ impl Sniffer {
                         }
                         StatusValue::Exit => {
 
-                            println!("Sniffer exit, TOT Packets: {}", buffer_packets.len());
+                            for pac in buffer_packets.iter(){
+                                println!("{}  {}", pac.get_protocol(), pac.get_dim());
+                            }
+                            println!("Sniffer exit, TOT Packets: {}", &buffer_packets.len());
+
                             let protocols : HashSet<Protocol> = buffer_packets.into_iter().map(|p| p.get_protocol()).collect();
                             println!("protocols: {:?}", protocols);
                             return;
@@ -98,7 +103,26 @@ impl Sniffer {
                     }
 
                 }
-                Err(e) => println!("packetdump: unable to receive packet: {}", e),      //TODO: GESTIRE ERRORE (settare status ad exit e ritornare)
+                Err(_) => {
+                    {  // Check the status of the application
+                        let status_value = self.status.mutex.lock().unwrap();
+                        status = *status_value;
+                    }
+
+                    match status {
+                        StatusValue::Exit => {
+
+                            for pac in buffer_packets.iter(){
+                                println!("{}  {}", pac.get_protocol(), pac.get_dim());
+                            }
+                            println!("Sniffer exit, TOT Packets: {}", buffer_packets.len());
+                            let protocols : HashSet<Protocol> = buffer_packets.into_iter().map(|p| p.get_protocol()).collect();
+                            println!("protocols: {:?}", protocols);
+                            return;
+                        }
+                        _ => continue
+                    }
+                },
            }
         }
     }

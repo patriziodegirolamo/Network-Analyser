@@ -18,7 +18,7 @@ use std::time::{Duration};
 
 
 use std::str::FromStr;
-use pnet_datalink::{MacAddr, NetworkInterface};
+use pcap::Device;
 
 /* -------- Protocol enum ---------*/
 /// All possible Protocols that can be handled by the applications.
@@ -624,9 +624,10 @@ pub fn handle_ethernet_frame(ethernet: &EthernetPacket, new_packet_info: &mut Pa
     }
 }
 
+//TODO: FORSE NON SERVE PIU QUESTA HANDLE VISTO CHE NON USIAMO PIU 'NetworkINterface' ma Device
 /// Function to handle particular interfaces pointed out by the creators of 'Libpnet'
-pub fn handle_particular_interfaces(interface: &NetworkInterface, packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) -> bool {
-    let mut buf: [u8; 1600] = [0u8; 1600]; //il frame ethernet è di 1518 byte -> sovradimensionato a 1600
+pub fn handle_particular_interfaces(interface: &Device, packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) -> bool {
+    /*let mut buf: [u8; 1600] = [0u8; 1600]; //il frame ethernet è di 1518 byte -> sovradimensionato a 1600
     let mut new_ethernet_frame = MutableEthernetPacket::new(&mut buf[..]).unwrap();
     let payload_offset;
     if cfg!(any(target_os = "macos", target_os = "ios"))
@@ -664,5 +665,7 @@ pub fn handle_particular_interfaces(interface: &NetworkInterface, packet: &[u8],
             }
         }
     }
+
+     */
     return false;
 }
