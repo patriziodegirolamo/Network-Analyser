@@ -83,7 +83,7 @@ pub struct NetworkAnalyser {
 
 impl Display for NetworkAnalyser {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "> NETWORK ANALYSER: \n\n\
+        write!(f, "> NETWORK ANALYSER SETTINGS: \n\n\
                    >> Interface: {}; \n\
                    >> Time Interval: {} secs; \n\
                    >> Filename: '{}'; \n\
@@ -153,8 +153,8 @@ impl NetworkAnalyser {
 
     /// Start the NetworkAnalyser.
     /// It can return an ErrorNetworkAnalyser if an error occours during the process.
-    /// Otherwise it returns void and it means that the process is running.
-    pub fn start(&mut self) -> Result<(), ErrorNetworkAnalyser> {
+    /// Otherwise it returns an instance of NetworkAnalyser and it means that process is running.
+    pub fn start(mut self) -> Result<NetworkAnalyser, ErrorNetworkAnalyser> {
         let mut conf = Config::default();
         conf.read_buffer_size = 1000000;
         conf.write_buffer_size = 1000000;
@@ -214,7 +214,18 @@ impl NetworkAnalyser {
 
         println!("**** SNIFFING... ");
 
-        return Ok(());
+        return Ok(Self {
+            interface: self.interface,
+            time_interval: self.time_interval,
+            filename: self.filename,
+            final_filename: self.final_filename,
+            filter: self.filter,
+            sniffer_handle: self.sniffer_handle,
+            reporter_handle:self.reporter_handle,
+            status: self.status
+
+
+        });
     }
     /// Pause the network analyser
     /// If the process is already in 'Pause' mode then it returns an error.

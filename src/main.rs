@@ -17,12 +17,11 @@ fn main() {
 
     match na.start() // Start the process
     {
-        Ok(_) => {}
+        Ok(n) => {na = n;}
         Err(e) => {
             println!("{}", e);
             return;}
     }
-
 
     // Handle user commands
     let mut cmd = String::new();
