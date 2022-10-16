@@ -51,15 +51,10 @@ impl Sniffer {
     pub fn sniffing(mut self) {
         let mut status;
 
-        //TODO: serve per un check visivo dei pacchetti. Non è effettivamente utile!
-        let mut buffer_packets = vec![];
-
         loop {
             // Get a packet from the interface
-            match self.receiver_channel.next_packet() { //TODO: se non arrivano pacchetti rimane bloccato qua!!!
-
+            match self.receiver_channel.next_packet() {
                 Ok(packet) => {
-                    println!("{}", packet.header.len);
                     {  // Check the status of the application
                         let status_value = self.status.mutex.lock().unwrap();
                         status = *status_value;
@@ -80,7 +75,6 @@ impl Sniffer {
                             if !packet_handle::handle_particular_interfaces(&self.interface, packet.data, &mut new_packet_info, &self.filter) {
                                 packet_handle::handle_ethernet_frame(&EthernetPacket::new(packet.data).unwrap(), &mut new_packet_info, &self.filter);
                             }
-                            buffer_packets.push(new_packet_info.clone());
                             // Send the packet info to the Sniffer
                             self.sender_channel.send(new_packet_info).unwrap();
                         }
@@ -90,14 +84,6 @@ impl Sniffer {
                             continue;
                         }
                         StatusValue::Exit => {
-
-                            for pac in buffer_packets.iter(){
-                                println!("{}  {}", pac.get_protocol(), pac.get_dim());
-                            }
-                            println!("Sniffer exit, TOT Packets: {}", &buffer_packets.len());
-
-                            let protocols : HashSet<Protocol> = buffer_packets.into_iter().map(|p| p.get_protocol()).collect();
-                            println!("protocols: {:?}", protocols);
                             return;
                         }
                     }
@@ -111,13 +97,6 @@ impl Sniffer {
 
                     match status {
                         StatusValue::Exit => {
-
-                            for pac in buffer_packets.iter(){
-                                println!("{}  {}", pac.get_protocol(), pac.get_dim());
-                            }
-                            println!("Sniffer exit, TOT Packets: {}", buffer_packets.len());
-                            let protocols : HashSet<Protocol> = buffer_packets.into_iter().map(|p| p.get_protocol()).collect();
-                            println!("protocols: {:?}", protocols);
                             return;
                         }
                         _ => continue

@@ -78,7 +78,6 @@ impl Reporter {
                time_interval: usize,
                status_sniffing: Arc<Status>,
                receiver_channel: Receiver<PacketInfo>,
-               //status_writing: Arc<Mutex<bool>>,
                initial_time: SystemTime,
                filter: Filter,
     ) -> Self {
