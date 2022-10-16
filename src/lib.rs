@@ -187,13 +187,17 @@ impl NetworkAnalyser {
         }));
 
         // Thread Reporter
-        // - Clone all the data needed by the reporter
+        // - Clone the status, creating a copy of the pointer
         let status_reporter = self.status.clone();
+        // - Clone the name of the file for the report
         let filename = self.filename.clone();
+        // - Clone the name of the file for the final report
         let final_filename = self.final_filename.clone();
+        // - Clone the time interval
         let time_interval = self.time_interval.clone();
+        // - Clone the initial time
         let time_reporter = time.clone();
-        // - Run the reporter thread
+        // Run the reporter thread
         self.reporter_handle = Some(thread::spawn(move || {
             let reporter = Reporter::new(
                 filename,
