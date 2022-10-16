@@ -34,6 +34,8 @@ pub enum Protocol {
     IcmpV6,
     Dns,
     Tls,
+    Http,
+    Https,
     None
 }
 
@@ -71,6 +73,8 @@ impl Display for Protocol {
             Protocol::IcmpV6 => write!(f, "ICMP version 6"),
             Protocol::Dns => write!(f, "DNS"),
             Protocol::Tls => write!(f, "TLS"),
+            Protocol::Http => write!(f, "HTTP"),
+            Protocol::Https => write!(f, "HTTPS"),
             Protocol::None => write!(f, "None"),
         }
     }
@@ -478,9 +482,27 @@ fn handle_tcp_packet( packet: &[u8], new_packet_info: &mut PacketInfo, filter: &
         PacketInfo::set_porta_sorgente(new_packet_info, prt_srg);
         PacketInfo::set_porta_destinazione(new_packet_info, prt_dest);
         PacketInfo::set_protocol(new_packet_info, Protocol::Tcp);
+
         // Check if the protocol carried is TLS or DNS
         handle_tls_packet(tcp.payload(), new_packet_info, filter);
         handle_dns_packet(tcp.payload(), new_packet_info, filter);
+
+        // Check if the application protocol is HTTP or HTTPS
+        match new_packet_info.prt_dest {
+            80 => {
+                if filter.protocol == Protocol::Http {
+                    new_packet_info.set_printed();
+                }
+                PacketInfo::set_protocol(new_packet_info, Protocol::Http);
+            }
+            443 => {
+                if filter.protocol == Protocol::Https {
+                    new_packet_info.set_printed();
+                }
+                PacketInfo::set_protocol(new_packet_info, Protocol::Https);
+            }
+            _ => {}
+        }
     } else {
         println!("Malformed TCP Packet");
     }
