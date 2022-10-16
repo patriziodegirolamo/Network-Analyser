@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::fmt::format;
 use std::fs::File;
 use std::{io, thread};
 use std::sync::{Arc, Mutex};
@@ -8,8 +7,8 @@ use std::time::{Duration, SystemTime};
 use crate::packet_handle::{ConversationKey, ConversationStats, PacketInfo};
 use crate::{Filter, Protocol, Status, StatusValue};
 use tabled::{Table, Tabled, Style, Width, Modify, Disable, Alignment, Extract};
-use tabled::object::{Rows, Columns, Column, Object, Segment};
-use tabled::style::Border;
+use tabled::object::{ Columns,  Object, Segment};
+//use tabled::style::Border;
 use std::io::Write;
 use tabled::formatting_settings::TrimStrategy;
 
@@ -401,7 +400,7 @@ fn write_summaries(file: &mut File, convs_summaries: &HashMap<ConversationKey, C
 fn write_final_report(file: &mut File, convs_final: &HashMap<ConversationKey, ConversationStats>) {
 
     let style = Style::rounded();
-    let column_dim = 15;
+    //let column_dim = 15;
     let mut convs_printed = vec![];
 
     if !convs_final.is_empty(){
@@ -459,7 +458,7 @@ fn write_final_report(file: &mut File, convs_final: &HashMap<ConversationKey, Co
             convs_printed.push(conv);
         }
         let mut table = Table::new(convs_printed);
-        let dim = table.shape();
+        //let dim = table.shape();
 
         //extract all the table except the first column
         table = table.with(Disable::Column(0..1))
