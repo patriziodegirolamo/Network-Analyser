@@ -258,6 +258,9 @@ fn timer(rcv_timer: Receiver<()>, time_interval: usize, status_writing: Arc<Mute
 }
 /// It checks if the given packet_info needs to be filtered.
 fn check_filter(filter: Filter, packet_info: PacketInfo) -> bool {
+    if packet_info.get_ip_sorgente().is_none() || packet_info.get_ip_destinazione().is_none() {
+        return false;
+    }
     if filter.get_ip_srg().is_some() &&
         packet_info.get_ip_sorgente().unwrap() != filter.get_ip_srg().unwrap() {
         return false;
