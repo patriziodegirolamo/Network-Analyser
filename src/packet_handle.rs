@@ -649,37 +649,21 @@ pub fn handle_ethernet_frame(ethernet: &EthernetPacket, new_packet_info: &mut Pa
 //TODO: FORSE NON SERVE PIU QUESTA HANDLE VISTO CHE NON USIAMO PIU 'NetworkINterface' ma Device
 /// Function to handle particular interfaces pointed out by the creators of 'Libpnet'
 pub fn handle_particular_interfaces(interface: &Device, packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) -> bool {
-    /*let mut buf: [u8; 1600] = [0u8; 1600]; //il frame ethernet è di 1518 byte -> sovradimensionato a 1600
+    let mut buf: [u8; 1600] = [0u8; 1600]; //il frame ethernet è di 1518 byte -> sovradimensionato a 1600
     let mut new_ethernet_frame = MutableEthernetPacket::new(&mut buf[..]).unwrap();
-    let payload_offset;
-    if cfg!(any(target_os = "macos", target_os = "ios"))
-        && interface.is_up()
-        && !interface.is_broadcast()
-        && ((!interface.is_loopback() && interface.is_point_to_point())
-        || interface.is_loopback())
-    {
-        if interface.is_loopback() {
-            // The pnet code for BPF loopback adds a zero'd out Ethernet header
-            payload_offset = 14;
-        } else {
-            // Maybe is TUN interface
-            payload_offset = 0;
-        }
-        if packet.len() > payload_offset {
-            let version = Ipv4Packet::new(&packet[payload_offset..]).unwrap().get_version();
 
+    if interface.flags.is_loopback(){
+        let payload_offset = 4;
+
+        if packet.len() > payload_offset {
+            let _version = Ipv4Packet::new(&packet[payload_offset..]);
+            let version = _version.unwrap().get_version();
             if version == 4 {
-                //println!("CASO PARTICOLARE 1");
-                new_ethernet_frame.set_destination(MacAddr(0, 0, 0, 0, 0, 0));
-                new_ethernet_frame.set_source(MacAddr(0, 0, 0, 0, 0, 0));
                 new_ethernet_frame.set_ethertype(EtherTypes::Ipv4);
                 new_ethernet_frame.set_payload(&packet[payload_offset..]);
                 handle_ethernet_frame(&new_ethernet_frame.to_immutable(), new_packet_info, &filter);
                 return true;
             } else if version == 6 {
-                //println!("CASO PARTICOLARE 2");
-                new_ethernet_frame.set_destination(MacAddr(0, 0, 0, 0, 0, 0));
-                new_ethernet_frame.set_source(MacAddr(0, 0, 0, 0, 0, 0));
                 new_ethernet_frame.set_ethertype(EtherTypes::Ipv6);
                 new_ethernet_frame.set_payload(&packet[payload_offset..]);
                 handle_ethernet_frame(&new_ethernet_frame.to_immutable(), new_packet_info, &filter);
@@ -688,6 +672,5 @@ pub fn handle_particular_interfaces(interface: &Device, packet: &[u8], new_packe
         }
     }
 
-     */
     return false;
 }
