@@ -182,8 +182,8 @@ impl PacketInfo {
         self.protocol = protocol
     }
     /// Set that the packet needs to be printed (true)
-    pub fn set_printed(&mut self) {
-        self.printed = true;
+    pub fn set_printed(&mut self, value: bool) {
+        self.printed = value;
     }
 }
 
@@ -386,7 +386,7 @@ fn handle_dns_packet(packet: &[u8], new_packet_info: &mut PacketInfo, filter: &F
         Ok(_) => {
             PacketInfo::set_protocol(new_packet_info, Protocol::Dns);
             if filter.protocol == Protocol::Dns {
-                new_packet_info.set_printed();
+                new_packet_info.set_printed(true);
             }
 
         }
@@ -401,7 +401,7 @@ fn handle_tls_packet(packet: &[u8], new_packet_info: &mut PacketInfo, filter: &F
             PacketInfo::set_protocol(new_packet_info, Protocol::Tls);
             //println!("TLS plaintext {:?}", tls_packet.1);
             if filter.protocol == Protocol::Tls {
-                new_packet_info.set_printed();
+                new_packet_info.set_printed(true);
             }
         }
 
@@ -419,7 +419,7 @@ fn handle_udp_packet(packet: &[u8], new_packet_info: &mut PacketInfo, filter: &F
         // Save them in the PacketInfo structure
 
         if filter.protocol == Protocol::Udp {
-            new_packet_info.set_printed();
+            new_packet_info.set_printed(true);
         }
 
 
@@ -441,7 +441,7 @@ fn handle_icmp_packet( packet: &[u8], new_packet_info: &mut PacketInfo, filter: 
         // Save the protocol type in the PacketInfo structure
         PacketInfo::set_protocol(new_packet_info, Protocol::IcmpV4);
         if filter.protocol == Protocol::IcmpV4 {
-            new_packet_info.set_printed();
+            new_packet_info.set_printed(true);
         }
 
     }
@@ -458,7 +458,7 @@ fn handle_icmpv6_packet( packet: &[u8], new_packet_info: &mut PacketInfo, filter
         // Save the protocol type in the PacketInfo structure
         PacketInfo::set_protocol(new_packet_info, Protocol::IcmpV6);
         if filter.protocol == Protocol::IcmpV6 {
-            new_packet_info.set_printed();
+            new_packet_info.set_printed(true);
         }
     }
    // else {
@@ -474,7 +474,7 @@ fn handle_tcp_packet( packet: &[u8], new_packet_info: &mut PacketInfo, filter: &
         let prt_dest = tcp.get_destination();
 
         if filter.protocol == Protocol::Tcp {
-            new_packet_info.set_printed();
+            new_packet_info.set_printed(true);
         }
 
         // Save them in the PacketInfo structure
@@ -490,13 +490,13 @@ fn handle_tcp_packet( packet: &[u8], new_packet_info: &mut PacketInfo, filter: &
         if new_packet_info.prt_dest == 80 ||  new_packet_info.prt_sorg == 80{
 
                 if filter.protocol == Protocol::Http {
-                    new_packet_info.set_printed();
+                    new_packet_info.set_printed(true);
                 }
                 PacketInfo::set_protocol(new_packet_info, Protocol::Http);
             }
         else if new_packet_info.prt_dest == 443 ||  new_packet_info.prt_sorg == 443 {
                 if filter.protocol == Protocol::Https {
-                    new_packet_info.set_printed();
+                    new_packet_info.set_printed(true);
                 }
                 PacketInfo::set_protocol(new_packet_info, Protocol::Https);
             }
@@ -548,7 +548,7 @@ fn handle_ipv4_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInf
 
         // If there is a filter on the protocol and it is IPv4
         if filter.protocol == Protocol::IpV4 {
-            new_packet_info.set_printed();
+            new_packet_info.set_printed(true);
         }
 
 
@@ -579,14 +579,14 @@ fn handle_ipv6_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInf
 
         // If there is a filter on the protocol and it is IPv6
         if filter.protocol == Protocol::IpV6 {
-            new_packet_info.set_printed();
+            new_packet_info.set_printed(true);
         }
 
         if filter.ip_srg.is_some() && filter.ip_srg.unwrap() != ip_sorg {
-            new_packet_info.set_printed();
+            new_packet_info.set_printed(true);
         }
         if filter.ip_dest.is_some() && filter.ip_dest.unwrap() != ip_dest {
-            new_packet_info.set_printed();
+            new_packet_info.set_printed(true);
         }
 
         // Save them in the Packet Info structure
@@ -613,7 +613,7 @@ fn handle_arp_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInfo
 
         // If there is a filter on the protocol and it is IPv4
         if filter.protocol == Protocol::Arp {
-            new_packet_info.set_printed();
+            new_packet_info.set_printed(true);
         }
 
 
@@ -632,7 +632,7 @@ pub fn handle_ethernet_frame(ethernet: &EthernetPacket, new_packet_info: &mut Pa
 
     // If there is no filter on the protocol, packet is set printed
     if filter.protocol == Protocol::None {
-        new_packet_info.set_printed();
+        new_packet_info.set_printed(true);
     }
 
     match ethernet.get_ethertype() {
@@ -640,6 +640,7 @@ pub fn handle_ethernet_frame(ethernet: &EthernetPacket, new_packet_info: &mut Pa
         EtherTypes::Ipv6 => handle_ipv6_packet(ethernet, new_packet_info, filter),
         EtherTypes::Arp => handle_arp_packet(ethernet, new_packet_info, filter),
         _ => {
+            new_packet_info.set_printed(false);
             //println!("unknown lvl 3 protocol");
         }
     }
