@@ -18,7 +18,11 @@ To run it in Windows:
 - Install Npcap
 - Extract SDK zip and place folder's `/Lib/x64` absolute path in the `%LIB%` environment variable.
 
-#### Linux/MacOS
+#### Linux
+
+To run it on Linux, install Libpcap running command`sudo apt install libpcap-dev`.
+
+#### MacOS
 
 Libraries are already installed by default.
 
