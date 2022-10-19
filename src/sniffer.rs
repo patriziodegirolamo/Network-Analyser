@@ -1,11 +1,10 @@
-use std::collections::HashSet;
 use std::sync::{Arc};
 use std::sync::mpsc::Sender;
 use pnet::packet::ethernet::{EthernetPacket};
 use std::time::{SystemTime};
 use pcap::{Active, Capture, Device};
 use crate::packet_handle::PacketInfo;
-use crate::{Filter, packet_handle, Protocol, Status, StatusValue};
+use crate::{Filter, packet_handle, Status, StatusValue};
 
 /// Sniffer object.
 /// It gets raw packets from the 'Network Interface', handle them accordingly.

@@ -14,7 +14,7 @@ use packet_handle::{Filter};
 use std::thread::{self, JoinHandle};
 use std::time::{SystemTime};
 use regex::Regex;
-use crate::packet_handle::{PacketInfo, Protocol};
+use crate::packet_handle::{Protocol};
 use crate::reporter::Reporter;
 use crate::sniffer::Sniffer;
 

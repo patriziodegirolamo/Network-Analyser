@@ -98,7 +98,7 @@ impl Reporter {
     /// Function used to perform the reporting.
     /// It can be called only once. It returns when the status goes to 'Quit'.
     pub fn reporting(mut self) {
-        let mut status = StatusValue::Exit;
+        let mut status;
         //TODO: spostare la open nello start e gestire errore
         let mut file = open_file(&self.filename).unwrap();
         let mut n_packets = 0;

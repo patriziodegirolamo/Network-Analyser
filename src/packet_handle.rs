@@ -646,7 +646,6 @@ pub fn handle_ethernet_frame(ethernet: &EthernetPacket, new_packet_info: &mut Pa
     }
 }
 
-//TODO: FORSE NON SERVE PIU QUESTA HANDLE VISTO CHE NON USIAMO PIU 'NetworkINterface' ma Device
 /// Function to handle particular interfaces pointed out by the creators of 'Libpnet'
 pub fn handle_particular_interfaces(interface: &Device, packet: &[u8], new_packet_info: &mut PacketInfo, filter: &Filter) -> bool {
     let mut buf: [u8; 1600] = [0u8; 1600]; //il frame ethernet è di 1518 byte -> sovradimensionato a 1600
