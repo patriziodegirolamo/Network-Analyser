@@ -43,7 +43,29 @@ To run this project, clone it locally.
 
 ## Usage
 
+After running the executable, the console will ask to provide some input values:
 
+- The network interface to be sniffed
+- The time interval after which an updated version of the report of the observed traffic will be generated
+- The name of the file that will contain such report
+- Possible filters to apply to captured packets
 
+Here an example:
 
+![input](images/input.png)
+
+Those values will be used to populate the fields of a NetworkAnalyser object, which will manage all the sniffing process:
+
+```rust
+pub struct NetworkAnalyser {
+    interface: Device,
+    time_interval: usize,
+    filename: String,
+    final_filename: String,
+    filter: Filter,
+    sniffer_handle: Option<JoinHandle<()>>,
+    reporter_handle: Option<JoinHandle<()>>,
+    status: Arc<Status>,
+}
+```
 
