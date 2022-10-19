@@ -8,7 +8,7 @@ The purpose of this project is to provide an application to sniff and record the
 
 ## Dependencies
 
-This is a [Rust](https://www.rust-lang.org/it) application that uses [libpnet](https://docs.rs/pnet/latest/pnet/) library as a support in the capture and manipulation of packets.
+This is a [Rust](https://www.rust-lang.org/it) application that uses [libpnet](https://docs.rs/pnet/latest/pnet/) as a support in the capture and manipulation of packets. Such library provides modules and crates that allow to easily parse packets up to transport layer. Additional implementation of application level parsing methods can be found in [packet_handle.rs](https://github.com/patriziodegirolamo/Network-Analyser/blob/main/src/packet_handle.rs) module.
 
 #### Windows
 
@@ -25,6 +25,17 @@ Libraries are already installed by default.
 ## Installation
 
 To run this project, clone it locally. 
+
+#### Windows
+
+- Open the terminal as administrator and place in the project directory
+- Run `cargo build` to generate the executable
+- Run the executable with command `start target/debug/traffic_analyser`
+
+#### Linux/MacOS
+
+- Place in project directory and run `sudo cargo build`
+- Run the executable with command `sudo target/debug/traffic_analyser`
 
 ## Usage
 
