@@ -1,6 +1,6 @@
 # Network-Analyzer
 
-> Project developed for the Application Programming course of Politecnico di Torino.
+> Project developed for the System and Device Programming course of Politecnico di Torino.
 
 ## Overview
 
