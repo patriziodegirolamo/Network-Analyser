@@ -1,8 +1,0 @@
-C:\Users\patri\OneDrive\Desktop\progetto PDS\Network-Analyser\target\debug\deps\pnet_base-7e06c83acd3a6485.rmeta: C:\Users\patri\.cargo\registry\src\github.com-1ecc6299db9ec823\pnet_base-0.27.2\src\lib.rs C:\Users\patri\.cargo\registry\src\github.com-1ecc6299db9ec823\pnet_base-0.27.2\src\macaddr.rs
-
-C:\Users\patri\OneDrive\Desktop\progetto PDS\Network-Analyser\target\debug\deps\libpnet_base-7e06c83acd3a6485.rlib: C:\Users\patri\.cargo\registry\src\github.com-1ecc6299db9ec823\pnet_base-0.27.2\src\lib.rs C:\Users\patri\.cargo\registry\src\github.com-1ecc6299db9ec823\pnet_base-0.27.2\src\macaddr.rs
-
-C:\Users\patri\OneDrive\Desktop\progetto PDS\Network-Analyser\target\debug\deps\pnet_base-7e06c83acd3a6485.d: C:\Users\patri\.cargo\registry\src\github.com-1ecc6299db9ec823\pnet_base-0.27.2\src\lib.rs C:\Users\patri\.cargo\registry\src\github.com-1ecc6299db9ec823\pnet_base-0.27.2\src\macaddr.rs
-
-C:\Users\patri\.cargo\registry\src\github.com-1ecc6299db9ec823\pnet_base-0.27.2\src\lib.rs:
-C:\Users\patri\.cargo\registry\src\github.com-1ecc6299db9ec823\pnet_base-0.27.2\src\macaddr.rs:
