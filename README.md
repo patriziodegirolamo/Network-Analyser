@@ -6,13 +6,61 @@
 
 The purpose of this project is to provide an application to sniff and record the incoming and outgoing traffic of a computer network interface.
 
-## Dependencies
+## Features
 
 This is a [Rust](https://www.rust-lang.org/it) application that uses [libpnet](https://docs.rs/pnet/latest/pnet/) as a support in the capture and manipulation of packets. Such library provides modules and crates that allow to easily parse packets up to transport layer. Additional implementation of application level parsing methods can be found in [packet_handle.rs](https://github.com/patriziodegirolamo/Network-Analyser/blob/main/src/packet_handle.rs) module.
 
+#### Selection of Network Adapter
+
+The application allows to select the network interface through which the traffic will be observed. This will be set in promiscuous mode so that all incoming and outgoing packets are captured.
+
+#### Protocols Management
+
+It provides methods to handle the following protocols:
+
+- Data Link Layer: Ethernet
+- Network Layer: IPv4, IPv6, ARP, ICMPv4, ICMPv6
+- Transport Layer: TCP, UDP
+- Session Layer: TLS
+- Application Layer: DNS, HTTP, HTTPS
+
+#### Application of Filters
+
+You can choose to filter the captured data based on:
+
+- Source IP address
+- Destination IP address
+- Source port
+- Destination port
+- Protocol (among the list above)
+
+One or more of these filters can be applied at once.
+
+#### Record Statistics
+
+It is possible to generate two output files, providing two types of sniffing statistics:
+
+- Traffic observed in each **time interval**: 
+
+  For each **network address/port** pair, the traffic sniffed is detailed in terms of **highest layer protocol**  transported, **cumulated number of bytes** transmitted, **timestamps** of the first and last occurrence of information exchanged and **cumulated number of packets** intercepted.  
+
+  *Example of portion of report with time_interval = 5 s:*
+
+  ![report](images/report.png)
+
+- Summary of the traffic observed during the whole sniffing process.
+
+​		*Example of final report over a total time period of 31 s:*
+
+![final_report](images/final_report.png)
+
+## Getting Started
+
+You need to have a working Rust environment and install [Npcap](https://npcap.com/) on Windows or Libpcap if you're using Linux on your machine.
+
 #### Windows
 
-To run it in Windows:
+To install Npcap:
 
 - Download the Npcap latest installer and the Software Development Kit (SDK) from [here](https://npcap.com/#download)
 - Install Npcap
@@ -20,15 +68,15 @@ To run it in Windows:
 
 #### Linux
 
-To run it on Linux, install Libpcap running command`sudo apt install libpcap-dev`.
+Install Libpcap running command `sudo apt install libpcap-dev`.
 
 #### MacOS
 
 Libraries are already installed by default.
 
-## Installation
+## How to run
 
-To run this project, clone it locally. 
+The project provides a sample application called [main.rs](https://github.com/patriziodegirolamo/Network-Analyser/blob/main/src/main.rs) that shows the main features of the implemented library. To run it, first of all clone it locally. 
 
 #### Windows
 
@@ -43,9 +91,7 @@ To run this project, clone it locally.
 
 ## Usage
 
-The project provides a sample application called [main.rs](https://github.com/patriziodegirolamo/Network-Analyser/blob/main/src/main.rs) that shows the main features of the implemented library. 
-
-Running it, the console will ask to provide some input values:
+ Running the sample application, the console will ask to provide some input values:
 
 - The network interface to be sniffed
 - The time interval after which an updated version of the report of the observed traffic will be generated
@@ -63,32 +109,12 @@ na.init();	// Customize parameters
 na.start();	// Start the sniffing process
 ```
 
-![net_analyzer](images/net_analyzer.png)
-
-It is possible to temporarily pause and subsequently resume the sniffing process, and to terminate the application as well providing meaningful input commands on the console (**p** for pausing, **r** for resuming, **x** for quitting):
+It is possible to temporarily pause and subsequently resume the sniffing process, as well as to terminate the application providing meaningful input commands on the console (**p** for pausing, **r** for resuming, **x** for quitting):
 
 ```rust
-na.pause().unwrap();    // Pause
-na.resume().unwrap();   // Resume
-na.quit().unwrap();     // Quit
+na.pause();    // Pause
+na.resume();   // Resume
+na.quit();     // Quit
 ```
-
-### Report Files
-
-Two output files are generated, providing two types of sniffing statistics:
-
-- File *report.txt* lists the traffic observed in each **time interval**: 
-
-  For each **network address/port** pair, the traffic sniffed is detailed in terms of **highest layer protocol** transported, **cumulated number of bytes** transmitted, **timestamps** of the first and last occurrence of information exchanged and **cumulated number of packets** intercepted.  
-
-  *Example of portion of report with time_interval = 5 s:*
-
-  ![report](images/report.png)
-
-- File *final_report.txt* summarize the same informations observed during the whole sniffing process.
-
-​		*Example of final report over a total time period of 31 s:*
-
-![final_report](images/final_report.png)
 
 ​		
