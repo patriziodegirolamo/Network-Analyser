@@ -43,29 +43,52 @@ To run this project, clone it locally.
 
 ## Usage
 
-After running the executable, the console will ask to provide some input values:
+The project provides a sample application called [main.rs](https://github.com/patriziodegirolamo/Network-Analyser/blob/main/src/main.rs) that shows the main features of the implemented library. 
+
+Running it, the console will ask to provide some input values:
 
 - The network interface to be sniffed
 - The time interval after which an updated version of the report of the observed traffic will be generated
 - The name of the file that will contain such report
 - Possible filters to apply to captured packets
 
-Here an example:
+*Example of execution in Windows:*
 
 ![input](images/input.png)
 
-Those values will be used to populate the fields of a NetworkAnalyser object, which will manage all the sniffing process:
+Those values will be used to initialize the fields of a NetworkAnalyser object, which will manage all the sniffing process:
 
 ```rust
-pub struct NetworkAnalyser {
-    interface: Device,
-    time_interval: usize,
-    filename: String,
-    final_filename: String,
-    filter: Filter,
-    sniffer_handle: Option<JoinHandle<()>>,
-    reporter_handle: Option<JoinHandle<()>>,
-    status: Arc<Status>,
-}
+na.init();	// Customize parameters
+na.start();	// Start the sniffing process
 ```
 
+![net_analyzer](images/net_analyzer.png)
+
+It is possible to temporarily pause and subsequently resume the sniffing process, and to terminate the application as well providing meaningful input commands on the console (**p** for pausing, **r** for resuming, **x** for quitting):
+
+```rust
+na.pause().unwrap();		// Pause
+na.resume().unwrap();	// Resume
+na.quit().unwrap();		// Quit
+```
+
+### Report Files
+
+Two output files are generated, providing two types of sniffing statistics:
+
+- File *report.txt* lists the traffic observed in each **time interval**: 
+
+  For each **network address/port** pair, the traffic sniffed is detailed in terms of **highest layer protocol** transported, **cumulated number of bytes** transmitted, **timestamps** of the first and last occurrence of information exchanged and **cumulated number of packets** intercepted.  
+
+  *Example of portion of report with time_interval = 5 s:*
+
+  ![report](images/report.png)
+
+- File *final_report.txt* summarize the same informations observed during the whole sniffing process.
+
+​		*Example of final report over a total time period of 31 s:*
+
+![final_report](images/final_report.png)
+
+​		
