@@ -68,7 +68,7 @@ na.start();	// Start the sniffing process
 It is possible to temporarily pause and subsequently resume the sniffing process, and to terminate the application as well providing meaningful input commands on the console (**p** for pausing, **r** for resuming, **x** for quitting):
 
 ```rust
-na.pause().unwrap();		// Pause
+na.pause().unwrap();    // Pause
 na.resume().unwrap();   // Resume
 na.quit().unwrap();     // Quit
 ```
