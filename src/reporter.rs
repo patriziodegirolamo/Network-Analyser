@@ -45,7 +45,8 @@ impl ConvTabled{
 /// Every 'time_interval' seconds it prints on the 'filename' file the report of the conversations happened in the last time interval.
 /// In 'pause' mode stops taking packets from the channel and stops updating the report.
 /// In 'exit' mode writes on the report the last update and creates a final report with all the conversations happened.
-/// - *filename*: name of the report file (.exe)
+/// - *filename*: name of the report file (.txt)
+/// - *final_filename*: name of the final report file (.txt)
 /// - *time_interval*: number of seconds before updating the report
 /// - *status_sniffing*: status of the application ['Running', 'Exit', 'Pause']
 /// - *receiver_channel*: receiver end of the channel shared with the Sniffer thread
@@ -67,7 +68,8 @@ pub struct Reporter {
 
 impl Reporter {
     /// Initialize the Reporter object
-    /// - *filename*: name of the report file (.exe)
+    /// - *filename*: name of the report file (.txt)
+    /// - *final_filename*: name of the final report file (.txt)
     /// - *time_interval*: number of seconds before updating the report
     /// - *status_sniffing*: status of the application ['Running', 'Quit', 'Pause']
     /// - *receiver_channel*: receiver end of the channel shared with the Sniffer thread
@@ -99,7 +101,6 @@ impl Reporter {
     /// It can be called only once. It returns when the status goes to 'Quit'.
     pub fn reporting(mut self) {
         let mut status;
-        //TODO: spostare la open nello start e gestire errore
         let mut file = open_file(&self.filename).unwrap();
         let mut n_packets = 0;
         let mut write_titles = true;

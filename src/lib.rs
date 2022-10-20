@@ -77,7 +77,6 @@ pub struct NetworkAnalyser {
     sniffer_handle: Option<JoinHandle<()>>,
     reporter_handle: Option<JoinHandle<()>>,
     status: Arc<Status>,
-
 }
 
 impl Display for NetworkAnalyser {

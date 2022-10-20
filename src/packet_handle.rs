@@ -554,6 +554,7 @@ fn handle_ipv4_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInf
 
         PacketInfo::set_ip_sorgente(new_packet_info, ip_sorg);
         PacketInfo::set_ip_destinazione(new_packet_info, ip_dest);
+        PacketInfo::set_protocol(new_packet_info, Protocol::IpV4);
 
         handle_transport_protocol(
 
@@ -592,6 +593,8 @@ fn handle_ipv6_packet(ethernet: &EthernetPacket, new_packet_info: &mut PacketInf
         // Save them in the Packet Info structure
         PacketInfo::set_ip_sorgente(new_packet_info, ip_sorg);
         PacketInfo::set_ip_destinazione(new_packet_info, ip_dest);
+        PacketInfo::set_protocol(new_packet_info, Protocol::IpV6);
+
         handle_transport_protocol(
 
             header.get_next_header(),
