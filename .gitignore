@@ -1,4 +1,3 @@
-/target
-/target/*
-/target/debug/
 /final_report.txt
+/.idea/
+/target/
