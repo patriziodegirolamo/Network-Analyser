@@ -56,7 +56,7 @@ Running it, the console will ask to provide some input values:
 
 ![input](images/input.png)
 
-Those values will be used to initialize the fields of a NetworkAnalyser object, which will manage all the sniffing process:
+These values will be used to initialize the fields of a NetworkAnalyser object, which will manage all the sniffing process:
 
 ```rust
 na.init();	// Customize parameters
