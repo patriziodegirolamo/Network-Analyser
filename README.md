@@ -69,8 +69,8 @@ It is possible to temporarily pause and subsequently resume the sniffing process
 
 ```rust
 na.pause().unwrap();		// Pause
-na.resume().unwrap();	// Resume
-na.quit().unwrap();		// Quit
+na.resume().unwrap();   // Resume
+na.quit().unwrap();     // Quit
 ```
 
 ### Report Files
