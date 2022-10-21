@@ -35,7 +35,7 @@ You can choose to filter the captured data based on:
 - Destination port
 - Protocol (among the list above)
 
-One or more of these filters can be applied at once.
+For example using a filter as: [ IP source: Any; IP dest: Any, Port source: Any, Port dest: Any, Protocol: HTTP ] will consider only the HTTP packets during the sniffing process.
 
 #### Record Statistics
 
