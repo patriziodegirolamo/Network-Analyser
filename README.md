@@ -83,7 +83,7 @@ The project provides a sample application called [main.rs](https://github.com/pa
 
 - Open the terminal as administrator and place in the project directory
 - Run `cargo build` to generate the executable
-- Run the executable with command `start target/debug/traffic_analyser`
+- Run the executable with command `start target\debug\traffic_analyser`
 
 #### Linux/MacOS
 
