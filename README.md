@@ -4,7 +4,8 @@
 
 ## Overview
 
-The purpose of this project is to provide an application to sniff and record the incoming and outgoing traffic of a computer network interface.
+The purpose of this project is to provide a multiplatform application capable of intercepting incoming and outgoing traffic through the network interfaces of a computer.
+During the sniffing process the application periodically updates a report containing a synthesis of the observed events.
 
 ## Features
 
@@ -48,7 +49,7 @@ It is possible to generate two output files, providing two types of sniffing sta
 
   ![report](images/report.png)
 
-- Summary of the traffic observed during the whole sniffing process.
+- Summary of the traffic observed during the whole sniffing process. It is computed at the end of the process.
 
 ​		*Example of final report over a total time period of 31 s:*
 

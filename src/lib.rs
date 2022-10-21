@@ -363,7 +363,7 @@ fn get_interface() -> Result<Device, ErrorNetworkAnalyser>
 /// If an error occours it returns an ErrorNetworkAnalyser, otherwise it returns the time_interval
 fn get_time_interval(default: usize) -> Result<usize, ErrorNetworkAnalyser>
 {
-    println!("> Please, insert a time interval. We will update the report every 'time_interval' seconds. [Press X to exit.] [ENTER to set keep default value of {} ]", default);
+    println!("> Please, insert a time interval. We will update the report every 'time_interval' seconds. [Press X to exit.] [ENTER to keep default value of {} ]", default);
 
     let mut time_interval_str = String::new();
 
@@ -455,6 +455,7 @@ fn get_filter()-> Result<Filter, ErrorNetworkAnalyser>
     loop {
         print!(">> Answer: ");
         io::stdout().flush().expect("Error");
+        filt.clear();
 
         match io::stdin().read_line(&mut filt) {
             Ok(_) => {
