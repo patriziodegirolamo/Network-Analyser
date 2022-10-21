@@ -386,6 +386,10 @@ fn get_time_interval(default: usize) -> Result<usize, ErrorNetworkAnalyser>
                 else {
                     match cmd.parse::<usize>() {
                         Ok(tmp) => {
+                            if tmp == 0 {
+                                println!("> [Error]: Time interval must not be zero.");
+                                continue
+                            }
                             return Ok(tmp);
                         }
                         Err(err) => println!("> [Error]: {}", err)
