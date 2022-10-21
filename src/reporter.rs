@@ -395,7 +395,8 @@ fn write_final_report(file: &mut File, convs_final: &HashMap<ConversationKey, Co
     //let column_dim = 15;
     let mut convs_printed = vec![];
 
-    if !convs_final.is_empty(){
+    //if !convs_final.is_empty()
+    {
 
         // Creo un vettore in cui inserisco le conversazioni come tupla (Key, Stats)
         let mut sorted_conv: Vec<(ConversationKey, ConversationStats)> = Vec::new();
