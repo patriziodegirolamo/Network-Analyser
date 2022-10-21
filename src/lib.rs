@@ -247,8 +247,13 @@ impl NetworkAnalyser {
             return Err(ErrorNetworkAnalyser::ErrorQuit("Error: cannot quit if you don't start".to_string()));
         }
 
-        println!("***** You can find the final report here: {}", self.final_filename);
-        println!("************************ THE END  ************************");
+        println!();
+        println!("************************************************************************************************************************************************");
+        println!("********************************************************   THE END   ***************************************************************************");
+        println!("************************************************************************************************************************************************");
+        println!();
+        println!("* You can find the final report here: {}", self.final_filename);
+
         return Ok(());
     }
 
@@ -263,7 +268,7 @@ impl NetworkAnalyser {
 
         *status_value = StatusValue::Running;
         self.status.cvar.notify_one();
-        println!("**** SNIFFING RESUMED  ");
+        println!("**** SNIFFING RESUMED...  ");
         println!("**** SNIFFING...  ");
         return Ok(());
     }
