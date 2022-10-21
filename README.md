@@ -1,6 +1,6 @@
 # Network-Analyzer
 
-> Project developed for the System and Device Programming course of Politecnico di Torino by Cristina Biasi (281936), Giulia D'Ascenzi (287720) and Patrizio De Girolamo (292497)
+> Project developed for the System and Device Programming course of Politecnico di Torino (academic year 2021-2022) by **Cristina Biasi** (281936), **Giulia D'Ascenzi** (287720) and **Patrizio De Girolamo** (292497)
 
 ## Overview
 
