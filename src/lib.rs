@@ -207,6 +207,11 @@ impl NetworkAnalyser {
     /// Pause the network analyser
     /// If the process is already in 'Pause' mode then it returns an error.
     pub fn pause(&mut self) -> Result<(), ErrorNetworkAnalyser> {
+        if self.sniffer_handle.is_none() || self.reporter_handle.is_none()
+        {
+            return Err(ErrorNetworkAnalyser::ErrorPause("Error: first start the sniffing calling the 'start()' function".to_string()));
+
+        }
         let mut status_value = self.status.mutex.lock().unwrap();
 
         if *status_value == StatusValue::Paused {
@@ -222,6 +227,7 @@ impl NetworkAnalyser {
     /// It puts the application in 'Exit' state.
     pub fn quit(&mut self) -> Result<(), ErrorNetworkAnalyser> {
         {
+
             let mut status_value = self.status.mutex.lock().unwrap();
 
             // If its in pause mode wakeup the reporter
@@ -238,13 +244,13 @@ impl NetworkAnalyser {
         if let Some(sniffer_handle) = self.sniffer_handle.take() {
             sniffer_handle.join().unwrap();
         } else {
-            return Err(ErrorNetworkAnalyser::ErrorQuit("Error: cannot quit if you don't start".to_string()));
+            return Err(ErrorNetworkAnalyser::ErrorQuit("Error: first start the sniffing calling the 'start()' function".to_string()));
         }
 
         if let Some(reporter_handle) = self.reporter_handle.take() {
             reporter_handle.join().unwrap();
         } else {
-            return Err(ErrorNetworkAnalyser::ErrorQuit("Error: cannot quit if you don't start".to_string()));
+            return Err(ErrorNetworkAnalyser::ErrorQuit("Error: first start the sniffing calling the 'start()' function".to_string()));
         }
 
         println!();
@@ -260,10 +266,14 @@ impl NetworkAnalyser {
     /// Resume the process. It wakes up the Reporter and the Sniffer and the process continues.
     /// It returns an error if the process is already running.
     pub fn resume(&mut self) -> Result<(), ErrorNetworkAnalyser> {
-        let mut status_value = self.status.mutex.lock().unwrap();
+        if self.sniffer_handle.is_none() || self.reporter_handle.is_none()
+        {
+            return Err(ErrorNetworkAnalyser::ErrorResume("Error: first start the sniffing calling the 'start()' function".to_string()));
+
+        }let mut status_value = self.status.mutex.lock().unwrap();
 
         if *status_value == StatusValue::Running {
-            return Err(ErrorNetworkAnalyser::ErrorPause("Error: cannot resume if is already running".to_string()));
+            return Err(ErrorNetworkAnalyser::ErrorResume("Error: cannot resume if is already running".to_string()));
         }
 
         *status_value = StatusValue::Running;
